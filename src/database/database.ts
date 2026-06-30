@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { File, Paths, Directory } from 'expo-file-system';
 import { DefaultCategories } from '../theme/colors';
 import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account } from '../types';
 
@@ -417,4 +418,25 @@ export async function getCategorySummaryForDateRange(
     s.percentage = grandTotal > 0 ? (s.total / grandTotal) * 100 : 0;
   });
   return summaries;
+}
+
+export async function exportDatabase(): Promise<string> {
+  const src = new File(new Directory(Paths.document, 'SQLite'), 'finanzas.db');
+  const dest = new File(Paths.cache, 'BalancePro-backup.db');
+  await src.copy(dest, { overwrite: true });
+  return dest.uri;
+}
+
+export async function importDatabase(fileUri: string): Promise<void> {
+  if (db) {
+    await db.closeAsync();
+    db = null;
+  }
+  const dbDir = new Directory(Paths.document, 'SQLite');
+  if (!dbDir.exists) {
+    dbDir.create({ intermediates: true });
+  }
+  const srcFile = new File(fileUri);
+  const destFile = new File(dbDir, 'finanzas.db');
+  await srcFile.copy(destFile, { overwrite: true });
 }

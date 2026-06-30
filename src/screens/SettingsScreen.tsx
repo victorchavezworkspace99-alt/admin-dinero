@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, FlatList, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../theme/ThemeContext';
 import { CURRENCIES, Currency, ThemeMode } from '../store/SettingsStore';
 import { exportTransactionsToCSV } from '../utils/exportCSV';
@@ -38,8 +40,41 @@ export function SettingsScreen() {
     setExporting(false);
   };
 
-  const handleBackup = () => {
-    Alert.alert('Respaldo', 'Funcion proximamente. Los datos se almacenan localmente en SQLite.');
+  const [backingUp, setBackingUp] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      const { exportDatabase } = await import('../database/database');
+      const uri = await exportDatabase();
+      const avail = await Sharing.isAvailableAsync();
+      if (avail) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/octet-stream', dialogTitle: 'Respaldar Base de Datos' });
+      } else {
+        Alert.alert('Exportado', `Archivo: ${uri}`);
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo exportar la base de datos');
+    }
+    setBackingUp(false);
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled) { setImporting(false); return; }
+      const file = result.assets[0];
+      if (!file) { setImporting(false); return; }
+      const { importDatabase, initDatabase } = await import('../database/database');
+      await importDatabase(file.uri);
+      await initDatabase();
+      Alert.alert('Importado', 'Base de datos restaurada correctamente. Reinicia la app para aplicar los cambios.');
+    } catch {
+      Alert.alert('Error', 'No se pudo importar la base de datos. Asegurate de seleccionar un archivo .db valido.');
+    }
+    setImporting(false);
   };
 
   const handleCheckUpdate = async () => {
@@ -157,12 +192,12 @@ export function SettingsScreen() {
           color: '#0E94D9', onPress: handleExport,
         },
         {
-          icon: 'cloud-upload-outline', label: 'Respaldo de Base de Datos', value: '',
+          icon: 'cloud-upload-outline', label: 'Exportar Base de Datos', value: backingUp ? 'Exportando...' : '',
           color: '#6366F1', onPress: handleBackup,
         },
         {
-          icon: 'server-outline', label: 'Almacenamiento', value: 'SQLite local',
-          color: '#14A892',
+          icon: 'cloud-download-outline', label: 'Importar Base de Datos', value: importing ? 'Importando...' : '',
+          color: '#D97706', onPress: handleImport,
         },
       ],
     },
