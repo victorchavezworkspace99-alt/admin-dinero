@@ -1,0 +1,5 @@
+{
+  "latestVersion": "1.0.0",
+  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.0.0/administrador_dinero.apk",
+  "changelog": "• Calendario inline para seleccionar fecha\n• Categorias en grid visual (3 columnas)\n• Buscador de actualizaciones integrado\n• Reload automatico al actualizar JS\n• Icono personalizado"
+}

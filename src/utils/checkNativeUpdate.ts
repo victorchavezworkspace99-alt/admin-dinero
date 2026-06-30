@@ -3,7 +3,7 @@ import { StorageAccessFramework } from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { Linking, Alert, Platform } from 'react-native';
 
-const UPDATE_INFO_URL = 'https://raw.githubusercontent.com/victorchavezlan/balance-pro-updates/main/version.json';
+const UPDATE_INFO_URL = 'https://raw.githubusercontent.com/victorchavezworkspace99-alt/admin-dinero/main/version.json';
 
 interface UpdateInfo {
   latestVersion: string;
