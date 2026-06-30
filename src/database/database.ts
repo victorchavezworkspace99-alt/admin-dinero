@@ -262,6 +262,22 @@ export async function getTransactions(
   return database.getAllAsync<Transaction>(query, params);
 }
 
+export async function updateTransaction(
+  id: number,
+  amount: number,
+  type: 'income' | 'expense',
+  category_id: number,
+  description: string,
+  date: string,
+  account_id?: number
+): Promise<void> {
+  const database = await openDatabase();
+  await database.runAsync(
+    'UPDATE transactions SET amount = ?, type = ?, category_id = ?, description = ?, date = ?, account_id = ? WHERE id = ?',
+    [amount, type, category_id, description, date, account_id ?? null, id]
+  );
+}
+
 export async function deleteTransaction(id: number): Promise<void> {
   const database = await openDatabase();
   await database.runAsync('DELETE FROM transactions WHERE id = ?', [id]);

@@ -1,30 +1,51 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { getCategories, getAccounts, addTransaction } from '../database/database';
+import { getCategories, getAccounts, addTransaction, updateTransaction, getTransactions } from '../database/database';
 import { CategorySelector } from '../components/CategorySelector';
 import { DatePickerModal } from '../components/DatePickerModal';
-import { Category, Account } from '../types';
+import { Category, Account, Transaction } from '../types';
 
 export function AddTransactionScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const [type, setType] = useState<'income' | 'expense'>('expense');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
+  const route = useRoute();
+  const editTx = (route.params as any)?.transaction as Transaction | undefined;
+  const isEditing = !!editTx;
+
+  const parseDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
+  const [type, setType] = useState<'income' | 'expense'>((editTx?.type as any) || 'expense');
+  const [amount, setAmount] = useState(editTx ? String(editTx.amount) : '');
+  const [description, setDescription] = useState(editTx?.description || '');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(editTx ? parseDate(editTx.date) : new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useFocusEffect(useCallback(() => {
-    getCategories().then(setCategories);
-    getAccounts().then(setAccounts);
+    getCategories().then((cats) => {
+      setCategories(cats);
+      if (editTx) {
+        const cat = cats.find(c => c.id === editTx.category_id);
+        if (cat) setSelectedCategory(cat);
+      }
+    });
+    getAccounts().then((accs) => {
+      setAccounts(accs);
+      if (editTx && editTx.account_id) {
+        const acc = accs.find(a => a.id === editTx.account_id);
+        if (acc) setSelectedAccount(acc);
+      }
+    });
   }, []));
 
   const formatDate = (d: Date) => {
@@ -47,7 +68,11 @@ export function AddTransactionScreen({ navigation }: any) {
     }
     setSaving(true);
     try {
-      await addTransaction(parseFloat(amount), type, selectedCategory.id, description, formatDate(date), selectedAccount?.id);
+      if (isEditing && editTx) {
+        await updateTransaction(editTx.id, parseFloat(amount), type, selectedCategory.id, description, formatDate(date), selectedAccount?.id);
+      } else {
+        await addTransaction(parseFloat(amount), type, selectedCategory.id, description, formatDate(date), selectedAccount?.id);
+      }
       navigation.goBack();
     } catch {
       Alert.alert('Error', 'No se pudo guardar la transaccion');
@@ -61,7 +86,7 @@ export function AddTransactionScreen({ navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Ionicons name="close" size={26} color={Colors.surface} />
         </TouchableOpacity>
-        <Text style={styles.title}>Nueva Transaccion</Text>
+        <Text style={styles.title}>{isEditing ? 'Editar' : 'Nueva'} Transaccion</Text>
         <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerBtn}>
           <Text style={[styles.saveBtn, saving && { opacity: 0.5 }]}>
             {saving ? 'Guardando' : 'Guardar'}

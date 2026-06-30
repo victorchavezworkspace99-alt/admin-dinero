@@ -76,7 +76,8 @@ export function TransactionsScreen({ navigation }: any) {
         renderItem={({ item }) => (
           <TransactionItem
             transaction={item}
-            onPress={() => confirmDelete(item)}
+            onPress={() => navigation.navigate('AddTransaction', { transaction: item })}
+            onLongPress={() => confirmDelete(item)}
           />
         )}
         ListEmptyComponent={

@@ -8,9 +8,10 @@ import { formatCurrency } from '../store/SettingsStore';
 interface Props {
   transaction: Transaction;
   onPress?: () => void;
+  onLongPress?: () => void;
 }
 
-export function TransactionItem({ transaction, onPress }: Props) {
+export function TransactionItem({ transaction, onPress, onLongPress }: Props) {
   const isIncome = transaction.type === 'income';
   const amountColor = isIncome ? Colors.income : Colors.expense;
   const sign = isIncome ? '+' : '\u2212';
@@ -24,6 +25,7 @@ export function TransactionItem({ transaction, onPress }: Props) {
     <TouchableOpacity
       style={styles.container}
       onPress={onPress}
+      onLongPress={onLongPress}
       activeOpacity={0.6}
     >
       <View style={[styles.iconBox, { backgroundColor: transaction.category_color + '18' }]}>
