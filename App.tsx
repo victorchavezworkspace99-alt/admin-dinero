@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { initDatabase } from './src/database/database';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -51,9 +51,10 @@ export default function App() {
 
   if (!ready) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1A6DF0" />
-        <Text style={styles.loadingText}>Inicializando...</Text>
+      <View style={styles.splashContainer}>
+        <Image source={require('./assets/iconoapp.png')} style={styles.splashIcon} resizeMode="contain" />
+        <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 24 }} />
+        <Text style={styles.splashTitle}>Balance Pro</Text>
       </View>
     );
   }
@@ -82,5 +83,23 @@ const styles = StyleSheet.create({
     color: '#E04848',
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  splashContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A6DF0',
+  },
+  splashIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 22,
+  },
+  splashTitle: {
+    marginTop: 16,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
 });
