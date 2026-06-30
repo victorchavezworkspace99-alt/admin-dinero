@@ -11,7 +11,8 @@
     "userInterfaceStyle": "automatic",
     "splash": {
       "backgroundColor": "#1A6DF0",
-      "resizeMode": "contain"
+      "resizeMode": "contain",
+      "image": "./assets/iconoapp.png"
     },
     "ios": {
       "supportsTablet": true,
@@ -21,7 +22,8 @@
       "package": "com.tudominio.balancepro",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
-        "backgroundColor": "#1A6DF0"
+        "backgroundColor": "#1A6DF0",
+        "foregroundImage": "./assets/iconoapp.png"
       }
     },
     "plugins": [
