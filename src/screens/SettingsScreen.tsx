@@ -154,8 +154,8 @@ export function SettingsScreen() {
           <View style={s.aboutIcon}>
             <Ionicons name="wallet" size={28} color={c.primary} />
           </View>
-          <Text style={s.appName}>Admin Dinero</Text>
-          <Text style={s.appDesc}>Tu administrador financiero personal</Text>
+          <Text style={s.appName}>Balance Pro</Text>
+          <Text style={s.appDesc}>Control financiero inteligente</Text>
           <Text style={s.appDesc}>Datos almacenados localmente en el dispositivo.</Text>
         </View>
       </View>

@@ -1,17 +1,25 @@
 {
   "expo": {
-    "name": "Admin Dinero",
-    "slug": "administrador-dinero",
+    "name": "Balance Pro",
+    "slug": "balance-pro",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#1A6DF0",
+      "resizeMode": "contain"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tudominio.administradordinero"
+      "bundleIdentifier": "com.tudominio.balancepro"
     },
     "android": {
-      "package": "com.tudominio.administradordinero",
-      "softwareKeyboardLayoutMode": "pan"
+      "package": "com.tudominio.balancepro",
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "backgroundColor": "#1A6DF0"
+      }
     },
     "plugins": [
       "expo-sqlite",
