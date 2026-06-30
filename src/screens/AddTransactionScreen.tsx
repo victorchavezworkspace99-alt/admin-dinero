@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { getCategories, addTransaction } from '../database/database';
@@ -9,6 +10,7 @@ import { DatePickerModal } from '../components/DatePickerModal';
 import { Category } from '../types';
 
 export function AddTransactionScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -52,7 +54,7 @@ export function AddTransactionScreen({ navigation }: any) {
 
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: 16 + insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Ionicons name="close" size={26} color={Colors.surface} />
         </TouchableOpacity>
@@ -125,7 +127,7 @@ export function AddTransactionScreen({ navigation }: any) {
         type={type}
       />
 
-      <View style={{ height: 100 }} />
+      <View style={{ height: 100 + insets.bottom }} />
     </ScrollView>
   );
 }
@@ -138,7 +140,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.primary,
     paddingHorizontal: 20,
-    paddingTop: 52,
     paddingBottom: 16,
   },
   headerBtn: { padding: 4 },
