@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { getBudgets, setBudget, deleteBudget, getCategories } from '../database/database';
+import { getBudgets, setBudget, updateBudget, deleteBudget, getCategories, copyRecurringBudgets } from '../database/database';
 import { Budget, Category } from '../types';
 import { formatCurrency as fc } from '../store/SettingsStore';
 
@@ -15,28 +15,44 @@ export function BudgetsScreen() {
   const [year, setYear] = useState(now.getFullYear());
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [budgetAmount, setBudgetAmount] = useState('');
+  const [isRecurring, setIsRecurring] = useState(0);
 
   useFocusEffect(useCallback(() => {
     getBudgets(month, year).then(setBudgets);
     getCategories('expense').then(setCategories);
   }, [month, year]));
 
-  const changeMonth = (delta: number) => {
+  const changeMonth = async (delta: number) => {
     let m = month + delta;
     let y = year;
     if (m < 1) { m = 12; y--; }
     if (m > 12) { m = 1; y++; }
     setMonth(m);
     setYear(y);
+    if (delta > 0) {
+      await copyRecurringBudgets(month, year, m, y);
+    }
     getBudgets(m, y).then(setBudgets);
   };
 
   const openAdd = () => {
+    setEditingBudget(null);
     setSelectedCategory(null);
     setBudgetAmount('');
+    setIsRecurring(0);
+    setModalVisible(true);
+  };
+
+  const openEdit = (budget: Budget) => {
+    setEditingBudget(budget);
+    const cat = categories.find(c => c.id === budget.category_id);
+    setSelectedCategory(cat || null);
+    setBudgetAmount(budget.amount.toString());
+    setIsRecurring(budget.is_recurring || 0);
     setModalVisible(true);
   };
 
@@ -50,7 +66,11 @@ export function BudgetsScreen() {
       return;
     }
     try {
-      await setBudget(selectedCategory.id, parseFloat(budgetAmount), month, year);
+      if (editingBudget) {
+        await updateBudget(editingBudget.id, parseFloat(budgetAmount), isRecurring);
+      } else {
+        await setBudget(selectedCategory.id, parseFloat(budgetAmount), month, year, isRecurring);
+      }
       setModalVisible(false);
       getBudgets(month, year).then(setBudgets);
     } catch {
@@ -72,10 +92,13 @@ export function BudgetsScreen() {
   const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
   const [catSearch, setCatSearch] = useState('');
-  const uncategorizedCats = useMemo(() => {
+  const availableCats = useMemo(() => {
     const q = catSearch.toLowerCase();
-    return categories.filter(c => !budgets.some(b => b.category_id === c.id) && c.name.toLowerCase().includes(q));
-  }, [categories, budgets, catSearch]);
+    return categories.filter(c => {
+      const alreadyHas = budgets.some(b => b.category_id === c.id && b.id !== (editingBudget?.id || -1));
+      return !alreadyHas && c.name.toLowerCase().includes(q);
+    });
+  }, [categories, budgets, catSearch, editingBudget]);
 
   return (
     <ScrollView style={styles.container}>
@@ -114,6 +137,7 @@ export function BudgetsScreen() {
           <TouchableOpacity
             key={budget.id}
             style={styles.budgetCard}
+            onPress={() => openEdit(budget)}
             onLongPress={() => handleDelete(budget)}
             activeOpacity={0.7}
           >
@@ -122,7 +146,15 @@ export function BudgetsScreen() {
                 <Ionicons name={(budget.category_icon || 'ellipsis-horizontal') as any} size={20} color={budget.category_color || Colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.budgetName}>{budget.category_name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.budgetName}>{budget.category_name}</Text>
+                  {budget.is_recurring === 1 && (
+                    <View style={styles.recurringBadge}>
+                      <Ionicons name="repeat" size={10} color={Colors.primary} />
+                      <Text style={styles.recurringBadgeText}>Fijo</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.budgetMeta}>
                   {formatCurrency(budget.spent)} de {formatCurrency(budget.amount)}
                 </Text>
@@ -159,7 +191,7 @@ export function BudgetsScreen() {
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Nuevo Presupuesto</Text>
+            <Text style={styles.modalTitle}>{editingBudget ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}</Text>
 
             <Text style={styles.modalLabel}>Categoria</Text>
             <View style={styles.catSearchWrap}>
@@ -178,7 +210,7 @@ export function BudgetsScreen() {
               ) : null}
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-              {uncategorizedCats.map((cat) => (
+              {availableCats.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
                   style={[
@@ -191,10 +223,35 @@ export function BudgetsScreen() {
                   <Text style={styles.catOptionLabel}>{cat.name}</Text>
                 </TouchableOpacity>
               ))}
-              {uncategorizedCats.length === 0 && (
+              {availableCats.length === 0 && (
                 <Text style={{ color: Colors.textLight, padding: 10, fontSize: 14 }}>Todas las categorias tienen presupuesto</Text>
               )}
             </ScrollView>
+
+            <Text style={styles.modalLabel}>Tipo</Text>
+            <View style={styles.typeToggle}>
+              <TouchableOpacity
+                style={[styles.typeOption, isRecurring === 0 && styles.typeOptionActive]}
+                onPress={() => setIsRecurring(0)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="flash-outline" size={16} color={isRecurring === 0 ? Colors.surface : Colors.text} />
+                <Text style={[styles.typeOptionText, isRecurring === 0 && styles.typeOptionTextActive]}>Variable</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.typeOption, isRecurring === 1 && styles.typeOptionActive]}
+                onPress={() => setIsRecurring(1)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="repeat" size={16} color={isRecurring === 1 ? Colors.surface : Colors.text} />
+                <Text style={[styles.typeOptionText, isRecurring === 1 && styles.typeOptionTextActive]}>Fijo</Text>
+              </TouchableOpacity>
+            </View>
+            {isRecurring === 1 && (
+              <Text style={{ color: Colors.textSecondary, fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
+                Los presupuestos fijos se crean automaticamente cada mes nuevo
+              </Text>
+            )}
 
             <Text style={styles.modalLabel}>Monto Limite</Text>
             <View style={styles.amountRow}>
@@ -313,4 +370,11 @@ const styles = StyleSheet.create({
   cancelText: { fontSize: 16, fontWeight: '600', color: Colors.textSecondary },
   saveBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center', backgroundColor: Colors.primary },
   saveText: { fontSize: 16, fontWeight: '600', color: Colors.surface },
+  typeToggle: { flexDirection: 'row', backgroundColor: Colors.background, borderRadius: 14, padding: 4, marginBottom: 8, gap: 4 },
+  typeOption: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 11, gap: 4 },
+  typeOptionActive: { backgroundColor: Colors.primary },
+  typeOptionText: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  typeOptionTextActive: { color: Colors.surface },
+  recurringBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 2 },
+  recurringBadgeText: { fontSize: 10, fontWeight: '600', color: Colors.primary },
 });

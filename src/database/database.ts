@@ -12,7 +12,7 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
   return db;
 }
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export async function initDatabase(): Promise<void> {
   let database = await openDatabase();
@@ -111,6 +111,16 @@ export async function initDatabase(): Promise<void> {
       await database.execAsync('ALTER TABLE transactions ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL');
     }
 
+    await database.execAsync(`PRAGMA user_version = 2`);
+  }
+
+  if (currentVersion < 3) {
+    const colExists = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM pragma_table_info("budgets") WHERE name="is_recurring"`
+    );
+    if (colExists?.count === 0) {
+      await database.execAsync('ALTER TABLE budgets ADD COLUMN is_recurring INTEGER DEFAULT 0');
+    }
     await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 }
@@ -342,7 +352,7 @@ export async function getBudgets(month: number, year: number): Promise<Budget[]>
   const database = await openDatabase();
   return database.getAllAsync<Budget>(
     `SELECT
-      b.id, b.category_id, b.amount, b.month, b.year,
+      b.id, b.category_id, b.amount, b.month, b.year, b.is_recurring,
       c.name as category_name, c.icon as category_icon, c.color as category_color,
       COALESCE((SELECT SUM(t.amount) FROM transactions t
         WHERE t.category_id = b.category_id
@@ -357,13 +367,51 @@ export async function getBudgets(month: number, year: number): Promise<Budget[]>
   );
 }
 
-export async function setBudget(category_id: number, amount: number, month: number, year: number): Promise<void> {
+export async function setBudget(category_id: number, amount: number, month: number, year: number, is_recurring = 0): Promise<void> {
+  const database = await openDatabase();
+  const existing = await database.getFirstAsync<{ id: number }>(
+    'SELECT id FROM budgets WHERE category_id = ? AND month = ? AND year = ?',
+    [category_id, month, year]
+  );
+  if (existing) {
+    await database.runAsync(
+      'UPDATE budgets SET amount = ?, is_recurring = ? WHERE id = ?',
+      [amount, is_recurring, existing.id]
+    );
+  } else {
+    await database.runAsync(
+      'INSERT INTO budgets (category_id, amount, month, year, is_recurring) VALUES (?, ?, ?, ?, ?)',
+      [category_id, amount, month, year, is_recurring]
+    );
+  }
+}
+
+export async function updateBudget(id: number, amount: number, is_recurring: number): Promise<void> {
   const database = await openDatabase();
   await database.runAsync(
-    `INSERT OR REPLACE INTO budgets (category_id, amount, month, year)
-     VALUES (?, ?, ?, ?)`,
-    [category_id, amount, month, year]
+    'UPDATE budgets SET amount = ?, is_recurring = ? WHERE id = ?',
+    [amount, is_recurring, id]
   );
+}
+
+export async function copyRecurringBudgets(fromMonth: number, fromYear: number, toMonth: number, toYear: number): Promise<void> {
+  const database = await openDatabase();
+  const budgets = await database.getAllAsync<{ category_id: number; amount: number }>(
+    'SELECT category_id, amount FROM budgets WHERE month = ? AND year = ? AND is_recurring = 1',
+    [fromMonth, fromYear]
+  );
+  for (const b of budgets) {
+    const existing = await database.getFirstAsync<{ id: number }>(
+      'SELECT id FROM budgets WHERE category_id = ? AND month = ? AND year = ?',
+      [b.category_id, toMonth, toYear]
+    );
+    if (!existing) {
+      await database.runAsync(
+        'INSERT INTO budgets (category_id, amount, month, year, is_recurring) VALUES (?, ?, ?, ?, 1)',
+        [b.category_id, b.amount, toMonth, toYear]
+      );
+    }
+  }
 }
 
 export async function deleteBudget(id: number): Promise<void> {

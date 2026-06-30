@@ -48,6 +48,7 @@ export interface Budget {
   spent: number;
   month: number;
   year: number;
+  is_recurring?: number;
 }
 
 export interface MonthlySummary {
