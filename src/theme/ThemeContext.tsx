@@ -28,6 +28,7 @@ interface ThemeCtx {
   isDark: boolean;
   updateSettings: (partial: Partial<Settings>) => Promise<void>;
   formatCurrency: (amount: number) => string;
+  userName: string;
 }
 
 const ThemeContext = createContext<ThemeCtx>(null!);
@@ -58,6 +59,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       isDark,
       updateSettings,
       formatCurrency: (amount: number) => formatCurrency(amount, settings.currency),
+      userName: settings.userName,
     }}>
       {children}
     </ThemeContext.Provider>

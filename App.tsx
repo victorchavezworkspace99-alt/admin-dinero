@@ -5,9 +5,25 @@ import { NavigationContainer } from '@react-navigation/native';
 import { initDatabase } from './src/database/database';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import { loadSettings } from './src/store/SettingsStore';
+import { WelcomeScreen } from './src/screens/WelcomeScreen';
 
 function AppContent() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, settings, updateSettings } = useTheme();
+  const [showWelcome, setShowWelcome] = useState(!settings.userName);
+
+  if (showWelcome) {
+    return (
+      <>
+        <StatusBar style="dark" />
+        <WelcomeScreen onComplete={async () => {
+          await updateSettings({ userName: settings.userName || 'Usuario' });
+          setShowWelcome(false);
+        }} />
+      </>
+    );
+  }
+
   return (
     <NavigationContainer>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -21,7 +37,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    initDatabase()
+    loadSettings().then(() => initDatabase())
       .then(() => setReady(true))
       .catch((err) => setError(err.message || 'Error al inicializar'));
   }, []);

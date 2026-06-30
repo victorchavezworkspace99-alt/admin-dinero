@@ -11,47 +11,56 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
   return db;
 }
 
+const SCHEMA_VERSION = 1;
+
 export async function initDatabase(): Promise<void> {
   const database = await openDatabase();
 
-  await database.execAsync(`
-    CREATE TABLE IF NOT EXISTS categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
-      icon TEXT NOT NULL,
-      color TEXT NOT NULL,
-      is_default INTEGER DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      amount REAL NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
-      category_id INTEGER NOT NULL,
-      description TEXT DEFAULT '',
-      date TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS budgets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      category_id INTEGER NOT NULL,
-      amount REAL NOT NULL,
-      month INTEGER NOT NULL CHECK(month BETWEEN 1 AND 12),
-      year INTEGER NOT NULL,
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
-      UNIQUE(category_id, month, year)
-    );
-  `);
+  const versionResult = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  const currentVersion = versionResult?.user_version ?? 0;
 
-  const count = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM categories');
-  if (count?.count === 0) {
-    for (const cat of DefaultCategories) {
-      await database.runAsync(
-        'INSERT INTO categories (name, type, icon, color, is_default) VALUES (?, ?, ?, ?, 1)',
-        [cat.name, cat.type, cat.icon, cat.color]
+  if (currentVersion < 1) {
+    await database.execAsync(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+        icon TEXT NOT NULL,
+        color TEXT NOT NULL,
+        is_default INTEGER DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amount REAL NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+        category_id INTEGER NOT NULL,
+        description TEXT DEFAULT '',
+        date TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        month INTEGER NOT NULL CHECK(month BETWEEN 1 AND 12),
+        year INTEGER NOT NULL,
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+        UNIQUE(category_id, month, year)
+      );
+    `);
+
+    const count = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM categories');
+    if (count?.count === 0) {
+      for (const cat of DefaultCategories) {
+        await database.runAsync(
+          'INSERT INTO categories (name, type, icon, color, is_default) VALUES (?, ?, ?, ?, 1)',
+          [cat.name, cat.type, cat.icon, cat.color]
+        );
+      }
     }
+
+    await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 }
 
@@ -230,4 +239,53 @@ export async function getBalance(): Promise<number> {
     FROM transactions`
   );
   return result?.balance ?? 0;
+}
+
+export async function getMonthlyTrends(months: number): Promise<{ month: number; year: number; income: number; expense: number }[]> {
+  const database = await openDatabase();
+  const now = new Date();
+  const results: { month: number; year: number; income: number; expense: number }[] = [];
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    const row = await database.getFirstAsync<{ income: number; expense: number }>(
+      `SELECT
+        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+      FROM transactions
+      WHERE CAST(strftime('%m', date) AS INTEGER) = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?`,
+      [m, y]
+    );
+    results.push({ month: m, year: y, income: row?.income ?? 0, expense: row?.expense ?? 0 });
+  }
+  return results;
+}
+
+export async function getCategorySummaryForDateRange(
+  startDate: string,
+  endDate: string,
+  type: 'income' | 'expense'
+): Promise<CategorySummary[]> {
+  const database = await openDatabase();
+  const rows = await database.getAllAsync<any>(
+    `SELECT
+      c.id as category_id, c.name as category_name, c.icon, c.color,
+      COALESCE(SUM(t.amount), 0) as total
+    FROM categories c
+    LEFT JOIN transactions t ON c.id = t.category_id
+      AND t.date >= ? AND t.date <= ?
+    WHERE c.type = ?
+    GROUP BY c.id
+    ORDER BY total DESC`,
+    [startDate, endDate, type]
+  );
+
+  const summaries: CategorySummary[] = rows.map((r: any) => ({ ...r, percentage: 0 }));
+  const grandTotal = summaries.reduce((s, r) => s + r.total, 0);
+  summaries.forEach((s) => {
+    s.percentage = grandTotal > 0 ? (s.total / grandTotal) * 100 : 0;
+  });
+  return summaries;
 }

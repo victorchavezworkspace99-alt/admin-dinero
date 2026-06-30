@@ -1,0 +1,49 @@
+{
+  "skills": [
+    {
+      "name": "frontend-design",
+      "path": "../../.agents/skills/frontend-design/SKILL.md",
+      "description": "Distinctive, intentional visual design for UI"
+    },
+    {
+      "name": "taste-design",
+      "path": "../../.agents/skills/taste-design/SKILL.md",
+      "description": "Premium anti-generic UI design system"
+    },
+    {
+      "name": "graphify",
+      "path": "../../.agents/skills/graphify/skill-opencode.md",
+      "description": "Knowledge graph for codebase analysis and queries"
+    },
+    {
+      "name": "gentle-ai-issue-creation",
+      "path": "../../.agents/skills/gentle-ai-main/skills/issue-creation/SKILL.md",
+      "description": "Pattern for creating GitHub issues"
+    },
+    {
+      "name": "gentle-ai-branch-pr",
+      "path": "../../.agents/skills/gentle-ai-main/skills/branch-pr/SKILL.md",
+      "description": "Pattern for pull requests and branches"
+    },
+    {
+      "name": "gentle-ai-chained-pr",
+      "path": "../../.agents/skills/gentle-ai-main/skills/chained-pr/SKILL.md",
+      "description": "Pattern for stacked PRs"
+    },
+    {
+      "name": "work-unit-commits",
+      "path": "../../.agents/skills/gentle-ai-main/skills/work-unit-commits/SKILL.md",
+      "description": "Split work into deliverable commits"
+    },
+    {
+      "name": "cognitive-doc-design",
+      "path": "../../.agents/skills/gentle-ai-main/skills/cognitive-doc-design/SKILL.md",
+      "description": "Docs that reduce cognitive load"
+    },
+    {
+      "name": "comment-writer",
+      "path": "../../.agents/skills/gentle-ai-main/skills/comment-writer/SKILL.md",
+      "description": "Drafting human comments and PR feedback"
+    }
+  ]
+}

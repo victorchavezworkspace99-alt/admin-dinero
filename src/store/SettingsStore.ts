@@ -5,6 +5,8 @@ const KEYS = {
   THEME: '@settings_theme',
   FIRST_DAY: '@settings_first_day',
   DEFAULT_TYPE: '@settings_default_type',
+  USER_NAME: '@settings_user_name',
+  DB_VERSION: '@settings_db_version',
 };
 
 export interface Currency {
@@ -36,6 +38,8 @@ export interface Settings {
   theme: ThemeMode;
   firstDay: FirstDay;
   defaultType: DefaultType;
+  userName: string;
+  dbVersion: number;
 }
 
 const defaultSettings: Settings = {
@@ -43,6 +47,8 @@ const defaultSettings: Settings = {
   theme: 'light',
   firstDay: 'monday',
   defaultType: 'expense',
+  userName: '',
+  dbVersion: 1,
 };
 
 let cachedSettings: Settings | null = null;
@@ -58,6 +64,8 @@ export async function loadSettings(): Promise<Settings> {
         theme: parsed.theme || 'light',
         firstDay: parsed.firstDay || 'monday',
         defaultType: parsed.defaultType || 'expense',
+        userName: parsed.userName || '',
+        dbVersion: parsed.dbVersion || 1,
       };
       return cachedSettings;
     }
@@ -73,6 +81,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
     theme: settings.theme,
     firstDay: settings.firstDay,
     defaultType: settings.defaultType,
+    userName: settings.userName,
+    dbVersion: settings.dbVersion,
   }));
 }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, FlatList, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { CURRENCIES, Currency, ThemeMode } from '../store/SettingsStore';
@@ -9,7 +9,10 @@ export function SettingsScreen() {
   const { colors, settings, updateSettings } = useTheme();
   const [showCurrency, setShowCurrency] = useState(false);
   const [showTheme, setShowTheme] = useState(false);
+  const [showName, setShowName] = useState(false);
+  const [editName, setEditName] = useState(settings.userName);
   const [exporting, setExporting] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   const handleReset = () => {
     Alert.alert('Reiniciar Datos', 'Se eliminaran todas las transacciones y presupuestos.', [
@@ -37,6 +40,27 @@ export function SettingsScreen() {
 
   const handleBackup = () => {
     Alert.alert('Respaldo', 'Funcion proximamente. Los datos se almacenan localmente en SQLite.');
+  };
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    try {
+      const Updates = await import('expo-updates');
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        Alert.alert('Actualizacion disponible', 'Descargando...', [
+          { text: 'Ok', onPress: async () => {
+            await Updates.fetchUpdateAsync();
+            Alert.alert('Listo', 'La actualizacion se aplicara al reiniciar la app');
+          }},
+        ]);
+      } else {
+        Alert.alert('Sin actualizaciones', 'Ya tienes la version mas reciente');
+      }
+    } catch {
+      Alert.alert('No disponible', 'Las actualizaciones OTA requieren publicar con "npx expo publish" primero');
+    }
+    setCheckingUpdate(false);
   };
 
   const c = colors;
@@ -72,9 +96,26 @@ export function SettingsScreen() {
     modalCode: { fontSize: 18, fontWeight: '700', color: c.text, width: 50 },
     modalName: { fontSize: 15, color: c.text, flex: 1 },
     modalCheck: { color: c.primary, fontSize: 20 },
+    nameInput: {
+      fontSize: 17, fontWeight: '500', color: c.text, backgroundColor: c.background,
+      borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: c.border,
+    },
+    nameModalContent: {
+      backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+      padding: 24,
+    },
   });
 
   const sections = [
+    {
+      label: 'Perfil',
+      items: [
+        {
+          icon: 'person-outline', label: 'Nombre', value: settings.userName || 'Tocar para asignar',
+          color: '#8B5CF6', onPress: () => { setEditName(settings.userName); setShowName(true); },
+        },
+      ],
+    },
     {
       label: 'General',
       items: [
@@ -115,6 +156,10 @@ export function SettingsScreen() {
       label: 'Sistema',
       items: [
         { icon: 'phone-portrait-outline', label: 'Version', value: '1.0.0', color: c.textSecondary },
+        {
+          icon: 'cloud-download-outline', label: 'Buscar Actualizaciones', value: checkingUpdate ? 'Buscando...' : '',
+          color: '#3B82F6', onPress: handleCheckUpdate,
+        },
         {
           icon: 'trash-outline', label: 'Reiniciar Datos', value: '',
           color: '#E04848', onPress: handleReset,
@@ -214,6 +259,32 @@ export function SettingsScreen() {
                 )}
               </TouchableOpacity>
             ))}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showName} animationType="slide" transparent>
+        <View style={s.modalOverlay}>
+          <View style={s.nameModalContent}>
+            <Text style={s.modalTitle}>Editar Nombre</Text>
+            <TextInput
+              style={s.nameInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Tu nombre"
+              placeholderTextColor={c.textLight}
+              maxLength={30}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: c.primary, borderRadius: 14, padding: 14, alignItems: 'center' }}
+              onPress={async () => {
+                await updateSettings({ userName: editName.trim() || 'Usuario' });
+                setShowName(false);
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Guardar</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

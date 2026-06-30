@@ -7,7 +7,7 @@
       "appVersionSource": "local"
     },
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/iconoapp.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "backgroundColor": "#1A6DF0",
@@ -26,8 +26,15 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-updates"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/478a854b-0a3e-4ea4-bba7-f64a1b4a6f2e"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
         "projectId": "478a854b-0a3e-4ea4-bba7-f64a1b4a6f2e"

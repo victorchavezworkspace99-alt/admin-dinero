@@ -23,7 +23,7 @@ function SpringScale({ children, delay = 0 }: { children: React.ReactNode; delay
 }
 
 export function HomeScreen({ navigation }: any) {
-  const { colors: c, formatCurrency } = useTheme();
+  const { colors: c, formatCurrency, userName } = useTheme();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -97,7 +97,7 @@ export function HomeScreen({ navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[c.primary]} />}
     >
       <View style={s.header}>
-        <Text style={s.greeting}>Resumen Financiero</Text>
+        <Text style={s.greeting}>Hola, {userName}</Text>
         <Text style={s.balanceLabel}>Balance Total</Text>
         <Text style={[s.balance, { color: balance >= 0 ? c.income : c.expense }]}>
           {fm(balance)}
