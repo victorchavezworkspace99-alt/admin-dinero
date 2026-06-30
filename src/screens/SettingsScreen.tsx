@@ -1,11 +1,18 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
+import { CURRENCIES, Currency, ThemeMode } from '../store/SettingsStore';
+import { exportTransactionsToCSV } from '../utils/exportCSV';
 
 export function SettingsScreen() {
+  const { colors, settings, updateSettings } = useTheme();
+  const [showCurrency, setShowCurrency] = useState(false);
+  const [showTheme, setShowTheme] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
   const handleReset = () => {
-    Alert.alert('Reiniciar Datos', 'Se eliminaran todas las transacciones y presupuestos. Esta accion no se puede deshacer.', [
+    Alert.alert('Reiniciar Datos', 'Se eliminaran todas las transacciones y presupuestos.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Reiniciar', style: 'destructive', onPress: async () => {
         try {
@@ -18,110 +25,198 @@ export function SettingsScreen() {
     ]);
   };
 
-  const settingItems = [
-    { icon: 'server-outline', label: 'Base de datos', value: 'SQLite local en el dispositivo', color: '#0FA870' },
-    { icon: 'phone-portrait-outline', label: 'Version', value: '1.0.0', color: Colors.primary },
-    { icon: 'trash-outline', label: 'Reiniciar datos', value: '', color: Colors.expense, action: handleReset },
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportTransactionsToCSV();
+    } catch {
+      Alert.alert('Error', 'No se pudo exportar');
+    }
+    setExporting(false);
+  };
+
+  const handleBackup = () => {
+    Alert.alert('Respaldo', 'Funcion proximamente. Los datos se almacenan localmente en SQLite.');
+  };
+
+  const c = colors;
+  const s = StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    header: { backgroundColor: c.primary, paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 },
+    title: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+    section: { marginTop: 20, paddingHorizontal: 16 },
+    sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 8, marginLeft: 4, letterSpacing: -0.3 },
+    item: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface,
+      borderRadius: 14, padding: 16, marginBottom: 6,
+      shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1,
+    },
+    iconWrap: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    itemLabel: { fontSize: 15, fontWeight: '600', color: c.text, letterSpacing: -0.2, flex: 1 },
+    itemValue: { fontSize: 14, color: c.textSecondary, marginRight: 6 },
+    aboutCard: {
+      backgroundColor: c.surface, borderRadius: 20, padding: 28, alignItems: 'center',
+      shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+    },
+    aboutIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: c.primaryLight, justifyContent: 'center', alignItems: 'center' },
+    appName: { fontSize: 20, fontWeight: '800', color: c.text, marginTop: 14, letterSpacing: -0.5 },
+    appDesc: { fontSize: 13, color: c.textSecondary, marginTop: 4, textAlign: 'center', lineHeight: 18 },
+    modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+    modalContent: { backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '70%' },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 16, letterSpacing: -0.4 },
+    modalItem: {
+      flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12,
+      borderRadius: 12, marginBottom: 4,
+    },
+    modalItemActive: { backgroundColor: c.primaryLight },
+    modalCode: { fontSize: 18, fontWeight: '700', color: c.text, width: 50 },
+    modalName: { fontSize: 15, color: c.text, flex: 1 },
+    modalCheck: { color: c.primary, fontSize: 20 },
+  });
+
+  const sections = [
+    {
+      label: 'General',
+      items: [
+        {
+          icon: 'cash-outline', label: 'Moneda', value: `${settings.currency.symbol} ${settings.currency.code}`,
+          color: '#0FA870', onPress: () => setShowCurrency(true),
+        },
+        {
+          icon: 'moon-outline', label: 'Tema', value: settings.theme === 'dark' ? 'Oscuro' : 'Claro',
+          color: '#8B5CF6', onPress: () => setShowTheme(true),
+        },
+        {
+          icon: 'calendar-outline', label: 'Inicio de Semana', value: settings.firstDay === 'monday' ? 'Lunes' : 'Domingo',
+          color: '#1A6DF0', onPress: () => {
+            updateSettings({ firstDay: settings.firstDay === 'monday' ? 'sunday' : 'monday' });
+          },
+        },
+      ],
+    },
+    {
+      label: 'Datos',
+      items: [
+        {
+          icon: 'download-outline', label: 'Exportar CSV', value: exporting ? 'Exportando...' : '',
+          color: '#0E94D9', onPress: handleExport,
+        },
+        {
+          icon: 'cloud-upload-outline', label: 'Respaldo de Base de Datos', value: '',
+          color: '#6366F1', onPress: handleBackup,
+        },
+        {
+          icon: 'server-outline', label: 'Almacenamiento', value: 'SQLite local',
+          color: '#14A892',
+        },
+      ],
+    },
+    {
+      label: 'Sistema',
+      items: [
+        { icon: 'phone-portrait-outline', label: 'Version', value: '1.0.0', color: c.textSecondary },
+        {
+          icon: 'trash-outline', label: 'Reiniciar Datos', value: '',
+          color: '#E04848', onPress: handleReset,
+        },
+      ],
+    },
   ];
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Configuracion</Text>
+    <ScrollView style={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>Configuracion</Text>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Informacion</Text>
-        {settingItems.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.settingItem}
-            onPress={item.action}
-            disabled={!item.action}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: item.color + '16' }]}>
-              <Ionicons name={item.icon as any} size={20} color={item.color} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingLabel}>{item.label}</Text>
-              {item.value ? <Text style={styles.settingValue}>{item.value}</Text> : null}
-            </View>
-            {item.action && <Ionicons name="chevron-forward" size={18} color={Colors.textLight} />}
-          </TouchableOpacity>
-        ))}
-      </View>
+      {sections.map((sec, si) => (
+        <View key={si} style={s.section}>
+          <Text style={s.sectionTitle}>{sec.label}</Text>
+          {sec.items.map((item, ii) => (
+            <TouchableOpacity
+              key={ii} style={s.item} onPress={item.onPress}
+              disabled={!item.onPress} activeOpacity={0.7}
+            >
+              <View style={[s.iconWrap, { backgroundColor: item.color + '16' }]}>
+                <Ionicons name={item.icon as any} size={20} color={item.color} />
+              </View>
+              <Text style={s.itemLabel}>{item.label}</Text>
+              {item.value ? <Text style={s.itemValue}>{item.value}</Text> : null}
+              {item.onPress && <Ionicons name="chevron-forward" size={18} color={c.textLight} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+      ))}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Acerca de</Text>
-        <View style={styles.aboutCard}>
-          <View style={styles.aboutIcon}>
-            <Ionicons name="wallet" size={28} color={Colors.primary} />
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Acerca de</Text>
+        <View style={s.aboutCard}>
+          <View style={s.aboutIcon}>
+            <Ionicons name="wallet" size={28} color={c.primary} />
           </View>
-          <Text style={styles.appName}>Admin Dinero</Text>
-          <Text style={styles.appDesc}>Tu administrador financiero personal</Text>
-          <Text style={styles.appDesc}>Datos almacenados localmente en el dispositivo.</Text>
+          <Text style={s.appName}>Admin Dinero</Text>
+          <Text style={s.appDesc}>Tu administrador financiero personal</Text>
+          <Text style={s.appDesc}>Datos almacenados localmente en el dispositivo.</Text>
         </View>
       </View>
 
       <View style={{ height: 100 }} />
+
+      <Modal visible={showCurrency} animationType="slide" transparent>
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={s.modalTitle}>Seleccionar Moneda</Text>
+            <FlatList
+              data={CURRENCIES}
+              keyExtractor={(i) => i.code}
+              renderItem={({ item }: { item: Currency }) => (
+                <TouchableOpacity
+                  style={[s.modalItem, settings.currency.code === item.code && s.modalItemActive]}
+                  onPress={async () => {
+                    await updateSettings({ currency: item });
+                    setShowCurrency(false);
+                  }}
+                >
+                  <Text style={s.modalCode}>{item.symbol}</Text>
+                  <Text style={s.modalName}>{item.name} ({item.code})</Text>
+                  {settings.currency.code === item.code && (
+                    <Ionicons name="checkmark-circle" size={22} color={c.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showTheme} animationType="slide" transparent>
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={s.modalTitle}>Seleccionar Tema</Text>
+            {(['light', 'dark'] as ThemeMode[]).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                style={[s.modalItem, settings.theme === mode && s.modalItemActive]}
+                onPress={async () => {
+                  await updateSettings({ theme: mode });
+                  setShowTheme(false);
+                }}
+              >
+                <Ionicons
+                  name={mode === 'light' ? 'sunny' : 'moon'}
+                  size={22}
+                  color={settings.theme === mode ? c.primary : c.textSecondary}
+                  style={{ marginRight: 14 }}
+                />
+                <Text style={s.modalName}>{mode === 'light' ? 'Claro' : 'Oscuro'}</Text>
+                {settings.theme === mode && (
+                  <Ionicons name="checkmark-circle" size={22} color={c.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingTop: 52,
-    paddingBottom: 16,
-  },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.surface, letterSpacing: -0.5 },
-  section: { marginTop: 20, paddingHorizontal: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 8, marginLeft: 4, letterSpacing: -0.3 },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 6,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  settingIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  settingLabel: { fontSize: 15, fontWeight: '600', color: Colors.text, letterSpacing: -0.2 },
-  settingValue: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  aboutCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 28,
-    alignItems: 'center',
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  aboutIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: Colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  appName: { fontSize: 20, fontWeight: '800', color: Colors.text, marginTop: 14, letterSpacing: -0.5 },
-  appDesc: { fontSize: 13, color: Colors.textSecondary, marginTop: 4, textAlign: 'center', lineHeight: 18 },
-});

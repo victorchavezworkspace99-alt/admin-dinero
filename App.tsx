@@ -4,7 +4,17 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { initDatabase } from './src/database/database';
 import { AppNavigator } from './src/navigation/AppNavigator';
-import { Colors } from './src/theme/colors';
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+
+function AppContent() {
+  const { colors, isDark } = useTheme();
+  return (
+    <NavigationContainer>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <AppNavigator />
+    </NavigationContainer>
+  );
+}
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -27,17 +37,16 @@ export default function App() {
   if (!ready) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color="#1A6DF0" />
         <Text style={styles.loadingText}>Inicializando...</Text>
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
-      <StatusBar style="light" />
-      <AppNavigator />
-    </NavigationContainer>
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 
@@ -46,16 +55,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: '#F6F7F9',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: '#6C6E76',
   },
   errorText: {
     fontSize: 16,
-    color: Colors.expense,
+    color: '#E04848',
     textAlign: 'center',
     paddingHorizontal: 20,
   },

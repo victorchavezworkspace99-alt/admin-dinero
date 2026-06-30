@@ -6,6 +6,7 @@ import { PieChart } from 'react-native-chart-kit';
 import { Colors } from '../theme/colors';
 import { getMonthlySummary, getCategorySummary } from '../database/database';
 import { MonthlySummary, CategorySummary } from '../types';
+import { formatCurrency } from '../store/SettingsStore';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const screenWidth = Dimensions.get('window').width;
@@ -34,8 +35,7 @@ export function ReportsScreen() {
     setYear(y);
   };
 
-  const formatCurrency = (val: number) =>
-    '$' + val.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fc = (val: number) => fc(val);
 
   const currentSummary = showIncome ? incomeSummary : expenseSummary;
   const currentLabel = showIncome ? 'Ingresos' : 'Gastos';
@@ -71,18 +71,18 @@ export function ReportsScreen() {
       <View style={styles.summaryRow}>
         <View style={[styles.card, { borderLeftColor: Colors.income }]}>
           <Text style={styles.cardLabel}>Ingresos</Text>
-          <Text style={[styles.cardAmount, { color: Colors.income }]}>{formatCurrency(summary.income)}</Text>
+          <Text style={[styles.cardAmount, { color: Colors.income }]}>{fc(summary.income)}</Text>
         </View>
         <View style={[styles.card, { borderLeftColor: Colors.expense }]}>
           <Text style={styles.cardLabel}>Gastos</Text>
-          <Text style={[styles.cardAmount, { color: Colors.expense }]}>{formatCurrency(summary.expense)}</Text>
+          <Text style={[styles.cardAmount, { color: Colors.expense }]}>{fc(summary.expense)}</Text>
         </View>
       </View>
 
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Balance del Mes</Text>
         <Text style={[styles.balanceAmount, { color: summary.balance >= 0 ? Colors.income : Colors.expense }]}>
-          {formatCurrency(summary.balance)}
+          {fc(summary.balance)}
         </Text>
       </View>
 
@@ -123,7 +123,7 @@ export function ReportsScreen() {
           <View key={s.category_id} style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: s.color }]} />
             <Text style={styles.legendName}>{s.category_name}</Text>
-            <Text style={styles.legendAmount}>{formatCurrency(s.total)}</Text>
+            <Text style={styles.legendAmount}>{fc(s.total)}</Text>
             <Text style={styles.legendPercent}>{s.percentage.toFixed(1)}%</Text>
           </View>
         ))}

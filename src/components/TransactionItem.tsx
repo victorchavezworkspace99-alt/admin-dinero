@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Transaction } from '../types';
 import { Colors } from '../theme/colors';
+import { formatCurrency } from '../store/SettingsStore';
 
 interface Props {
   transaction: Transaction;
@@ -13,9 +14,6 @@ export function TransactionItem({ transaction, onPress }: Props) {
   const isIncome = transaction.type === 'income';
   const amountColor = isIncome ? Colors.income : Colors.expense;
   const sign = isIncome ? '+' : '\u2212';
-
-  const formatAmount = (amount: number) =>
-    amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -36,9 +34,9 @@ export function TransactionItem({ transaction, onPress }: Props) {
         <Text style={styles.note} numberOfLines={1}>{transaction.description || 'Sin descripcion'}</Text>
       </View>
       <View style={styles.rightCol}>
-        <Text style={[styles.amount, { color: amountColor }]}>
-          {sign}${formatAmount(transaction.amount)}
-        </Text>
+          <Text style={[styles.amount, { color: amountColor }]}>
+            {sign}{formatCurrency(transaction.amount)}
+          </Text>
         <Text style={styles.date}>{formatDate(transaction.date)}</Text>
       </View>
     </TouchableOpacity>

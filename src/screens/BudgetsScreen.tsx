@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { getBudgets, setBudget, deleteBudget, getCategories } from '../database/database';
 import { Budget, Category } from '../types';
+import { formatCurrency as fc } from '../store/SettingsStore';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -66,8 +67,7 @@ export function BudgetsScreen() {
     ]);
   };
 
-  const formatCurrency = (val: number) =>
-    '$' + val.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatCurrency = (val: number) => fc(val);
 
   const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
