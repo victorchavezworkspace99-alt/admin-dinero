@@ -62,13 +62,11 @@ export function SettingsScreen() {
   const handleImport = async () => {
     setImporting(true);
     try {
-      const DocumentPicker = await import('expo-document-picker');
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
-      if (result.canceled) { setImporting(false); return; }
-      const file = result.assets[0];
-      if (!file) { setImporting(false); return; }
+      const { File } = await import('expo-file-system');
+      const result = await File.pickFileAsync({ mimeTypes: '*/*' });
+      if (result.canceled || !result.result) { setImporting(false); return; }
       const { importDatabase, initDatabase } = await import('../database/database');
-      await importDatabase(file.uri);
+      await importDatabase(result.result.uri);
       await initDatabase();
       Alert.alert('Importado', 'Base de datos restaurada correctamente. Reinicia la app para aplicar los cambios.');
     } catch {
