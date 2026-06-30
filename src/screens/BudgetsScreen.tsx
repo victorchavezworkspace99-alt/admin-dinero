@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -71,7 +71,11 @@ export function BudgetsScreen() {
 
   const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
-  const uncategorizedCats = categories.filter(c => !budgets.some(b => b.category_id === c.id));
+  const [catSearch, setCatSearch] = useState('');
+  const uncategorizedCats = useMemo(() => {
+    const q = catSearch.toLowerCase();
+    return categories.filter(c => !budgets.some(b => b.category_id === c.id) && c.name.toLowerCase().includes(q));
+  }, [categories, budgets, catSearch]);
 
   return (
     <ScrollView style={styles.container}>
@@ -158,6 +162,21 @@ export function BudgetsScreen() {
             <Text style={styles.modalTitle}>Nuevo Presupuesto</Text>
 
             <Text style={styles.modalLabel}>Categoria</Text>
+            <View style={styles.catSearchWrap}>
+              <Ionicons name="search" size={16} color={Colors.textLight} />
+              <TextInput
+                style={styles.catSearchField}
+                placeholder="Buscar categoria..."
+                placeholderTextColor={Colors.textLight}
+                value={catSearch}
+                onChangeText={setCatSearch}
+              />
+              {catSearch ? (
+                <TouchableOpacity onPress={() => setCatSearch('')}>
+                  <Ionicons name="close-circle" size={16} color={Colors.textLight} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
               {uncategorizedCats.map((cat) => (
                 <TouchableOpacity
@@ -271,6 +290,11 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 16, letterSpacing: -0.4 },
   modalLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8 },
+  catSearchWrap: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background,
+    borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 6, marginBottom: 10,
+  },
+  catSearchField: { flex: 1, fontSize: 14, color: Colors.text, paddingVertical: 0 },
   catOption: {
     alignItems: 'center',
     paddingVertical: 10,

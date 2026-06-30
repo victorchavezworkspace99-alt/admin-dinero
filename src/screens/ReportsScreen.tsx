@@ -4,14 +4,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart, BarChart, LineChart } from 'react-native-chart-kit';
 import { useTheme } from '../theme/ThemeContext';
-import { getMonthlySummary, getCategorySummary, getCategorySummaryForDateRange, getMonthlyTrends } from '../database/database';
-import { MonthlySummary, CategorySummary } from '../types';
+import { getMonthlySummary, getCategorySummary, getCategorySummaryForDateRange, getMonthlyTrends, getBudgets } from '../database/database';
+import { MonthlySummary, CategorySummary, Budget } from '../types';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 48;
 
-type Tab = 'resumen' | 'categorias' | 'tendencias' | 'personalizado';
+type Tab = 'resumen' | 'categorias' | 'tendencias' | 'presupuestos' | 'personalizado';
 
 function SpringScale({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   const scale = useRef(new Animated.Value(0.92)).current;
@@ -36,12 +36,14 @@ export function ReportsScreen() {
   const [incomeSummary, setIncomeSummary] = useState<CategorySummary[]>([]);
   const [showIncome, setShowIncome] = useState(false);
   const [trends, setTrends] = useState<{ month: number; year: number; income: number; expense: number }[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
 
   useFocusEffect(useCallback(() => {
     getMonthlySummary(month, year).then(setSummary);
     getCategorySummary(month, year, 'expense').then(setExpenseSummary);
     getCategorySummary(month, year, 'income').then(setIncomeSummary);
     getMonthlyTrends(6).then(setTrends);
+    getBudgets(month, year).then(setBudgets);
   }, [month, year]));
 
   const changeMonth = (delta: number) => {
@@ -101,6 +103,7 @@ export function ReportsScreen() {
     { key: 'resumen', label: 'Resumen', icon: 'speedometer-outline' },
     { key: 'categorias', label: 'Categorias', icon: 'pie-chart-outline' },
     { key: 'tendencias', label: 'Tendencias', icon: 'trending-up-outline' },
+    { key: 'presupuestos', label: 'Presupuestos', icon: 'wallet-outline' },
     { key: 'personalizado', label: 'Filtros', icon: 'options-outline' },
   ];
 
@@ -306,6 +309,147 @@ export function ReportsScreen() {
     </>
   );
 
+  const renderPresupuestos = () => {
+    const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
+    const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
+    const budgetPieData = budgets.filter(b => b.amount > 0 && b.category_name).map(b => ({
+      name: (b.category_name || '').length > 12 ? (b.category_name || '').substring(0, 12) + '..' : (b.category_name || ''),
+      total: b.amount,
+      color: b.category_color || c.primary,
+      legendFontColor: c.textSecondary,
+      legendFontSize: 12,
+    }));
+    const budgetBarLabels = budgets.filter(b => b.amount > 0 && b.category_name).slice(0, 8).map(b => (b.category_name || '').length > 8 ? (b.category_name || '').substring(0, 8) + '..' : (b.category_name || ''));
+    const budgetBarSpent = budgets.filter(b => b.amount > 0).slice(0, 8).map(b => b.spent);
+    const budgetBarAmount = budgets.filter(b => b.amount > 0).slice(0, 8).map(b => b.amount);
+    const budgetBarData = {
+      labels: budgetBarLabels,
+      datasets: [
+        { data: budgetBarSpent, color: (opacity = 1) => c.expense + Math.round(opacity * 255).toString(16).padStart(2, '0') },
+        { data: budgetBarAmount, color: (opacity = 1) => c.primary + Math.round(opacity * 255).toString(16).padStart(2, '0') },
+      ],
+      legend: ['Gastado', 'Presupuesto'],
+    };
+    return (
+      <>
+        <View style={ss.filterRow}>
+          <View style={ss.monthNav}>
+            <TouchableOpacity onPress={() => changeMonth(-1)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={20} color={c.text} />
+            </TouchableOpacity>
+            <Text style={[ss.monthText, { color: c.text }]}>{MONTHS[month - 1]} {year}</Text>
+            <TouchableOpacity onPress={() => changeMonth(1)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
+              <Ionicons name="chevron-forward" size={20} color={c.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {budgets.length === 0 ? (
+          <View style={[ss.emptyCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+            <View style={[ss.emptyRing, { backgroundColor: c.background, borderColor: c.border }]}>
+              <Ionicons name="wallet-outline" size={36} color={c.textLight} />
+            </View>
+            <Text style={[ss.emptyText, { color: c.textLight }]}>Sin presupuestos este mes</Text>
+          </View>
+        ) : (
+          <>
+            <SpringScale delay={50}>
+              <View style={[ss.balanceCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+                <Text style={[ss.balanceLabel, { color: c.textSecondary }]}>Presupuesto Total</Text>
+                <View style={ss.budgetTotalRow}>
+                  <View style={ss.budgetTotalItem}>
+                    <Text style={[ss.budgetTotalLabel, { color: c.textLight }]}>Asignado</Text>
+                    <Text style={[ss.budgetTotalAmount, { color: c.text }]}>{formatCurrency(totalBudget)}</Text>
+                  </View>
+                  <View style={ss.budgetTotalItem}>
+                    <Text style={[ss.budgetTotalLabel, { color: c.textLight }]}>Gastado</Text>
+                    <Text style={[ss.budgetTotalAmount, { color: c.expense }]}>{formatCurrency(totalSpent)}</Text>
+                  </View>
+                  <View style={ss.budgetTotalItem}>
+                    <Text style={[ss.budgetTotalLabel, { color: c.textLight }]}>Restante</Text>
+                    <Text style={[ss.budgetTotalAmount, { color: totalBudget - totalSpent >= 0 ? c.income : c.expense }]}>{formatCurrency(totalBudget - totalSpent)}</Text>
+                  </View>
+                </View>
+                <View style={[ss.progressBar, { backgroundColor: c.border }]}>
+                  <View style={[ss.progressFill, { width: `${Math.min((totalSpent / Math.max(totalBudget, 1)) * 100, 100)}%`, backgroundColor: (totalSpent / Math.max(totalBudget, 1)) > 0.8 ? c.warning : c.primary }]} />
+                </View>
+                <Text style={[ss.budgetPercentText, { color: c.textSecondary }]}>
+                  {((totalSpent / Math.max(totalBudget, 1)) * 100).toFixed(0)}% del presupuesto utilizado
+                </Text>
+              </View>
+            </SpringScale>
+
+            {budgetPieData.length > 0 && (
+              <SpringScale delay={100}>
+                <View style={[ss.chartCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+                  <Text style={[ss.sectionTitle, { color: c.text }]}>Distribucion del Presupuesto</Text>
+                  <PieChart
+                    data={budgetPieData}
+                    width={CHART_WIDTH}
+                    height={190}
+                    chartConfig={chartConfig}
+                    accessor="total"
+                    backgroundColor="transparent"
+                    paddingLeft="15"
+                    absolute={false}
+                  />
+                </View>
+              </SpringScale>
+            )}
+
+            {budgetBarData.labels.length > 0 && (
+              <SpringScale delay={150}>
+                <View style={[ss.sectionCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+                  <Text style={[ss.sectionTitle, { color: c.text }]}>Gasto vs Presupuesto</Text>
+                  <Text style={[ss.sectionSub, { color: c.textSecondary }]}>Por categoria</Text>
+                  <BarChart
+                    data={budgetBarData}
+                    width={CHART_WIDTH - 32}
+                    height={220}
+                    chartConfig={chartConfig}
+                    yAxisLabel="$"
+                    yAxisSuffix=""
+                    fromZero
+                  />
+                </View>
+              </SpringScale>
+            )}
+
+            <View style={ss.legendWrap}>
+              {budgets.map((b, i) => {
+                const percent = b.amount > 0 ? (b.spent / b.amount) * 100 : 0;
+                const isOver = percent > 100;
+                return (
+                  <SpringScale key={b.id} delay={i * 30}>
+                    <View style={[ss.budgetItem, { backgroundColor: c.surface }]}>
+                      <View style={ss.budgetItemLeft}>
+                        <View style={[ss.budgetItemIcon, { backgroundColor: (b.category_color || c.primary) + '18' }]}>
+                          <Ionicons name={(b.category_icon || 'ellipsis-horizontal') as any} size={18} color={b.category_color || c.primary} />
+                        </View>
+                        <View>
+                          <Text style={[ss.budgetItemName, { color: c.text }]}>{b.category_name}</Text>
+                          <Text style={[ss.budgetItemMeta, { color: c.textSecondary }]}>
+                            {formatCurrency(b.spent)} / {formatCurrency(b.amount)}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[ss.budgetItemPercent, { color: isOver ? c.expense : c.primary }]}>
+                        {percent.toFixed(0)}%
+                      </Text>
+                    </View>
+                    <View style={[ss.progressBar, { backgroundColor: c.border }]}>
+                      <View style={[ss.progressFill, { width: `${Math.min(percent, 100)}%`, backgroundColor: isOver ? c.expense : c.primary }]} />
+                    </View>
+                  </SpringScale>
+                );
+              })}
+            </View>
+          </>
+        )}
+      </>
+    );
+  };
+
   const renderPersonalizado = () => (
     <>
       <SpringScale delay={50}>
@@ -406,6 +550,7 @@ export function ReportsScreen() {
         {tab === 'resumen' && renderResumen()}
         {tab === 'categorias' && renderCategorias()}
         {tab === 'tendencias' && renderTendencias()}
+        {tab === 'presupuestos' && renderPresupuestos()}
         {tab === 'personalizado' && renderPersonalizado()}
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -463,6 +608,19 @@ const ss = StyleSheet.create({
   legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   legendDotBig: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
 
+  budgetTotalRow: { flexDirection: 'row', marginTop: 12, gap: 12 },
+  budgetTotalItem: { flex: 1, alignItems: 'center', backgroundColor: 'transparent' },
+  budgetTotalLabel: { fontSize: 11, fontWeight: '500' },
+  budgetTotalAmount: { fontSize: 16, fontWeight: '800', marginTop: 4, letterSpacing: -0.5 },
+  progressBar: { height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 14 },
+  progressFill: { height: '100%', borderRadius: 4 },
+  budgetPercentText: { fontSize: 12, textAlign: 'center', marginTop: 8, fontWeight: '500' },
+  budgetItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
+  budgetItemLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
+  budgetItemIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  budgetItemName: { fontSize: 14, fontWeight: '600' },
+  budgetItemMeta: { fontSize: 11, marginTop: 2 },
+  budgetItemPercent: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
   noDataRow: { alignItems: 'center', paddingVertical: 20 },
   noDataText: { fontSize: 13, marginTop: 8 },
 
