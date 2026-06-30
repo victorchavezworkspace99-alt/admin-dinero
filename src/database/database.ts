@@ -15,10 +15,22 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
 const SCHEMA_VERSION = 2;
 
 export async function initDatabase(): Promise<void> {
-  const database = await openDatabase();
+  let database = await openDatabase();
+  let currentVersion = 0;
 
-  const versionResult = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-  const currentVersion = versionResult?.user_version ?? 0;
+  try {
+    const versionResult = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+    currentVersion = versionResult?.user_version ?? 0;
+  } catch {
+    if (db) { await db.closeAsync(); db = null; }
+    const { File, Directory, Paths } = await import('expo-file-system');
+    const dbFile = new File(new Directory(Paths.document, 'SQLite'), 'finanzas.db');
+    if (dbFile.exists) {
+      dbFile.delete();
+    }
+    database = await openDatabase();
+    currentVersion = 0;
+  }
 
   if (currentVersion < 1) {
     await database.execAsync(`
