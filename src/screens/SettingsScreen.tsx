@@ -45,14 +45,25 @@ export function SettingsScreen() {
     setBackingUp(true);
     try {
       const { exportDatabase } = await import('../database/database');
-      const uri = await exportDatabase();
-      const Sharing = await import('expo-sharing');
-      const avail = await Sharing.isAvailableAsync();
-      if (avail) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/octet-stream', dialogTitle: 'Respaldar Base de Datos' });
-      } else {
-        Alert.alert('Exportado', `Archivo: ${uri}`);
+      const srcUri = await exportDatabase();
+      const { File } = await import('expo-file-system');
+      const srcFile = new File(srcUri);
+      const bytes = await srcFile.bytes();
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
       }
+      const base64 = btoa(binary);
+      const { StorageAccessFramework } = await import('expo-file-system/legacy');
+      const destUri = await StorageAccessFramework.createFileAsync(
+        StorageAccessFramework.getUriForDirectoryInRoot('Downloads'),
+        'BalancePro-backup.db',
+        'application/octet-stream'
+      );
+      await StorageAccessFramework.writeAsStringAsync(destUri, base64, {
+        encoding: 'base64',
+      });
+      Alert.alert('Exportado', 'Base de datos guardada en la carpeta Descargas.');
     } catch {
       Alert.alert('Error', 'No se pudo exportar la base de datos');
     }
