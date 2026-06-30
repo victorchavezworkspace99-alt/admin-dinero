@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Admin Dinero",
+    "slug": "administrador-dinero",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tudominio.administradordinero"
+    },
+    "android": {
+      "package": "com.tudominio.administradordinero",
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
+  }
+}

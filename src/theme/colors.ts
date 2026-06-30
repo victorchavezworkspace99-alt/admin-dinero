@@ -1,0 +1,45 @@
+export const Colors = {
+  primary: '#1A6DF0',
+  primaryLight: '#E3EEFF',
+  primaryDark: '#144FA8',
+  income: '#0FA870',
+  incomeLight: '#D6F5E8',
+  expense: '#E04848',
+  expenseLight: '#FDE3E3',
+  background: '#F6F7F9',
+  surface: '#FFFFFF',
+  text: '#1C1C1E',
+  textSecondary: '#6C6E76',
+  textLight: '#9B9DA3',
+  border: '#E4E5E8',
+  cardShadow: 'rgba(28,28,30,0.06)',
+  warning: '#E8972A',
+  warningLight: '#FEF0D6',
+  tabInactive: '#9B9DA3',
+};
+
+export const CategoryColors = [
+  '#1A6DF0', '#0FA870', '#E04848', '#E8972A',
+  '#8B5CF6', '#E04A8A', '#06A8C4', '#E06D2A',
+  '#14A892', '#6366F1', '#D946EF', '#22B05E',
+  '#D11D48', '#0E94D9', '#7AC416', '#A855F7',
+];
+
+export const DefaultCategories = [
+  { name: 'Salario', type: 'income' as const, icon: 'briefcase', color: '#1A6DF0' },
+  { name: 'Freelance', type: 'income' as const, icon: 'laptop', color: '#8B5CF6' },
+  { name: 'Inversiones', type: 'income' as const, icon: 'trending-up', color: '#0FA870' },
+  { name: 'Ventas', type: 'income' as const, icon: 'cart', color: '#E8972A' },
+  { name: 'Otros Ingresos', type: 'income' as const, icon: 'cash', color: '#06A8C4' },
+  { name: 'Alimentacion', type: 'expense' as const, icon: 'fast-food', color: '#E04848' },
+  { name: 'Transporte', type: 'expense' as const, icon: 'car', color: '#E06D2A' },
+  { name: 'Vivienda', type: 'expense' as const, icon: 'home', color: '#E04A8A' },
+  { name: 'Servicios', type: 'expense' as const, icon: 'flash', color: '#E8972A' },
+  { name: 'Salud', type: 'expense' as const, icon: 'medkit', color: '#22B05E' },
+  { name: 'Educacion', type: 'expense' as const, icon: 'book', color: '#6366F1' },
+  { name: 'Entretenimiento', type: 'expense' as const, icon: 'game-controller', color: '#D946EF' },
+  { name: 'Ropa', type: 'expense' as const, icon: 'shirt', color: '#D11D48' },
+  { name: 'Suscripciones', type: 'expense' as const, icon: 'repeat', color: '#0E94D9' },
+  { name: 'Comidas Fuera', type: 'expense' as const, icon: 'restaurant', color: '#E06D2A' },
+  { name: 'Otros Gastos', type: 'expense' as const, icon: 'ellipsis-horizontal', color: '#6C6E76' },
+];
