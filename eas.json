@@ -5,12 +5,29 @@
   "build": {
     "preview": {
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "cache": {
+          "key": "v1",
+          "paths": [
+            ".npm/_cacache",
+            "node_modules",
+            "package-lock.json"
+          ]
+        }
       }
     },
     "production": {
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "channel": "production",
+        "cache": {
+          "key": "v1",
+          "paths": [
+            ".npm/_cacache",
+            "node_modules",
+            "package-lock.json"
+          ]
+        }
       }
     }
   }

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { getCategories, addTransaction } from '../database/database';
 import { CategorySelector } from '../components/CategorySelector';
+import { DatePickerModal } from '../components/DatePickerModal';
 import { Category } from '../types';
 
 export function AddTransactionScreen({ navigation }: any) {
@@ -13,12 +14,22 @@ export function AddTransactionScreen({ navigation }: any) {
   const [description, setDescription] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useFocusEffect(useCallback(() => {
     getCategories().then(setCategories);
   }, []));
+
+  const formatDate = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleSelectDate = (d: Date) => setDate(d);
 
   const handleSave = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -31,7 +42,7 @@ export function AddTransactionScreen({ navigation }: any) {
     }
     setSaving(true);
     try {
-      await addTransaction(parseFloat(amount), type, selectedCategory.id, description, date);
+      await addTransaction(parseFloat(amount), type, selectedCategory.id, description, formatDate(date));
       navigation.goBack();
     } catch {
       Alert.alert('Error', 'No se pudo guardar la transaccion');
@@ -91,18 +102,20 @@ export function AddTransactionScreen({ navigation }: any) {
         onChangeText={setDescription}
       />
 
-      <View style={styles.dateRow}>
+      <TouchableOpacity style={styles.dateRow} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
         <View style={styles.dateIconBox}>
           <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
         </View>
-        <TextInput
-          style={styles.dateInput}
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={Colors.textLight}
-        />
-      </View>
+        <Text style={styles.dateText}>{formatDate(date)}</Text>
+        <Ionicons name="chevron-down" size={18} color={Colors.textLight} />
+      </TouchableOpacity>
+
+      <DatePickerModal
+        visible={showPicker}
+        date={date}
+        onSelect={handleSelectDate}
+        onClose={() => setShowPicker(false)}
+      />
 
       <Text style={styles.sectionLabel}>Categoria</Text>
       <CategorySelector
@@ -208,7 +221,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dateInput: { flex: 1, fontSize: 15, color: Colors.text },
+  dateText: { flex: 1, fontSize: 15, color: Colors.text, fontWeight: '500' },
   sectionLabel: {
     fontSize: 16,
     fontWeight: '700',

@@ -9,15 +9,14 @@ import { loadSettings } from './src/store/SettingsStore';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 
 function AppContent() {
-  const { colors, isDark, settings, updateSettings } = useTheme();
+  const { isDark, settings } = useTheme();
   const [showWelcome, setShowWelcome] = useState(!settings.userName);
 
   if (showWelcome) {
     return (
       <>
         <StatusBar style="dark" />
-        <WelcomeScreen onComplete={async () => {
-          await updateSettings({ userName: settings.userName || 'Usuario' });
+        <WelcomeScreen onComplete={() => {
           setShowWelcome(false);
         }} />
       </>

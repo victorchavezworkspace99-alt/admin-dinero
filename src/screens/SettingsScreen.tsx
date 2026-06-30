@@ -48,17 +48,31 @@ export function SettingsScreen() {
       const Updates = await import('expo-updates');
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
-        Alert.alert('Actualizacion disponible', 'Descargando...', [
-          { text: 'Ok', onPress: async () => {
+        Alert.alert('Actualizacion JS disponible', 'Descargando...', [
+          { text: 'Aplicar ahora', onPress: async () => {
             await Updates.fetchUpdateAsync();
-            Alert.alert('Listo', 'La actualizacion se aplicara al reiniciar la app');
+            await Updates.reloadAsync();
           }},
+          { text: 'Despues', style: 'cancel' },
         ]);
-      } else {
-        Alert.alert('Sin actualizaciones', 'Ya tienes la version mas reciente');
+        setCheckingUpdate(false);
+        return;
       }
-    } catch {
-      Alert.alert('No disponible', 'Las actualizaciones OTA requieren publicar con "npx expo publish" primero');
+    } catch {}
+
+    const { checkNativeUpdate, downloadAndInstallAPK } = await import('../utils/checkNativeUpdate');
+    const nativeUpdate = await checkNativeUpdate();
+    if (nativeUpdate) {
+      Alert.alert(
+        'Nueva version disponible',
+        `v${nativeUpdate.latestVersion}\n\n${nativeUpdate.changelog}`,
+        [
+          { text: 'Descargar e Instalar', onPress: () => downloadAndInstallAPK(nativeUpdate.apkUrl, nativeUpdate.latestVersion) },
+          { text: 'Ahora no', style: 'cancel' },
+        ]
+      );
+    } else {
+      Alert.alert('Sin actualizaciones', 'Ya tienes la version mas reciente');
     }
     setCheckingUpdate(false);
   };
