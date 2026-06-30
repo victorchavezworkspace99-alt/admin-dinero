@@ -4,7 +4,7 @@ import { View, Text, ActivityIndicator, StyleSheet, Image, TouchableOpacity, Ale
 import * as Updates from 'expo-updates';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { initDatabase } from './src/database/database';
+import { initDatabase, checkAndAutoCopyRecurringBudgets } from './src/database/database';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { loadSettings } from './src/store/SettingsStore';
@@ -41,6 +41,7 @@ export default function App() {
     setError(null);
     setReady(false);
     loadSettings().then(() => initDatabase())
+      .then(() => checkAndAutoCopyRecurringBudgets())
       .then(() => setReady(true))
       .catch((err) => setError(err.message || 'Error al inicializar'));
   };

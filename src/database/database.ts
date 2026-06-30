@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { File as ExpoFile, Directory as ExpoDirectory } from 'expo-file-system';
 import { DefaultCategories } from '../theme/colors';
 import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account } from '../types';
@@ -498,4 +499,28 @@ export async function importDatabase(fileUri: string): Promise<void> {
   const srcFile: ExpoFile = new File(fileUri);
   const destFile: ExpoFile = new File(defaultDatabaseDirectory, 'finanzas.db');
   await srcFile.copy(destFile, { overwrite: true });
+}
+
+export async function checkAndAutoCopyRecurringBudgets(): Promise<void> {
+  try {
+    const now = new Date();
+    const currentM = now.getMonth() + 1;
+    const currentY = now.getFullYear();
+    const currentKey = `${currentY}-${currentM}`;
+
+    const lastCopiedKey = await AsyncStorage.getItem('@last_copied_budget_month');
+    if (lastCopiedKey !== currentKey) {
+      let prevM = currentM - 1;
+      let prevY = currentY;
+      if (prevM < 1) {
+        prevM = 12;
+        prevY--;
+      }
+
+      await copyRecurringBudgets(prevM, prevY, currentM, currentY);
+      await AsyncStorage.setItem('@last_copied_budget_month', currentKey);
+    }
+  } catch (error) {
+    console.error('Error auto-copying recurring budgets:', error);
+  }
 }
