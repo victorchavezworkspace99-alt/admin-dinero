@@ -5,6 +5,7 @@ import { Colors } from '../theme/colors';
 
 export function MoreScreen({ navigation }: any) {
   const items = [
+    { icon: 'wallet-outline', label: 'Cuentas', screen: 'Accounts', color: '#10B981' },
     { icon: 'grid-outline', label: 'Categorias', screen: 'Categories', color: '#8B5CF6' },
     { icon: 'settings-outline', label: 'Configuracion', screen: 'SettingsMain', color: Colors.textSecondary },
   ];

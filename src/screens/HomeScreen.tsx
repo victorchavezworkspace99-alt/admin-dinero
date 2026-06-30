@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, A
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import { getBalance, getMonthlySummary, getTransactions } from '../database/database';
+import { getBalance, getMonthlySummary, getTransactions, getBalancesByAccount } from '../database/database';
 import { TransactionItem } from '../components/TransactionItem';
 import { EmptyState } from '../components/EmptyState';
 import { Transaction, MonthlySummary } from '../types';
@@ -31,11 +31,13 @@ export function HomeScreen({ navigation }: any) {
   const [balance, setBalance] = useState(0);
   const [recentTx, setRecentTx] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [accountBalances, setAccountBalances] = useState<any[]>([]);
 
   const loadData = useCallback(() => {
     getMonthlySummary(month, year).then(setSummary);
     getBalance().then(setBalance);
     getTransactions(undefined, undefined, month, year).then((tx) => setRecentTx(tx.slice(0, 5)));
+    getBalancesByAccount().then(setAccountBalances);
   }, [month, year]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
@@ -79,6 +81,12 @@ export function HomeScreen({ navigation }: any) {
     },
     summaryLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '500' },
     summaryAmount: { fontSize: 20, fontWeight: '800', marginTop: 4, letterSpacing: -0.5 },
+    accountCard: {
+      paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1,
+      marginRight: 10, minWidth: 110, alignItems: 'center', gap: 4,
+    },
+    accountCardName: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+    accountCardBal: { fontSize: 14, fontWeight: '800', letterSpacing: -0.3 },
     quickAdd: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.primary, marginHorizontal: 20, marginTop: 16,
@@ -135,6 +143,23 @@ export function HomeScreen({ navigation }: any) {
           <Text style={s.quickAddText}>Nueva Transaccion</Text>
         </TouchableOpacity>
       </SpringScale>
+
+      {accountBalances.length > 0 && (
+        <SpringScale delay={120}>
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionTitle}>Tus Cuentas</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingLeft: 16 }}>
+            {accountBalances.map((acc) => (
+              <View key={acc.id} style={[s.accountCard, { backgroundColor: acc.color + '12', borderColor: acc.color + '30' }]}>
+                <Ionicons name={acc.icon as any} size={20} color={acc.color} />
+                <Text style={[s.accountCardName, { color: c.text }]}>{acc.name}</Text>
+                <Text style={[s.accountCardBal, { color: acc.balance >= 0 ? c.text : c.expense }]}>{fm(acc.balance)}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </SpringScale>
+      )}
 
       <SpringScale delay={150}>
         <View style={s.sectionHeader}>

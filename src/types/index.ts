@@ -9,6 +9,20 @@ export interface Category {
   is_default: number;
 }
 
+export type AccountType = 'cash' | 'bank' | 'digital';
+
+export interface Account {
+  id: number;
+  name: string;
+  type: AccountType;
+  bank_name: string;
+  account_number: string;
+  icon: string;
+  color: string;
+  balance: number;
+  is_default: number;
+}
+
 export interface Transaction {
   id: number;
   amount: number;
@@ -17,6 +31,8 @@ export interface Transaction {
   category_name?: string;
   category_icon?: string;
   category_color?: string;
+  account_id?: number;
+  account_name?: string;
   description: string;
   date: string;
   created_at: string;

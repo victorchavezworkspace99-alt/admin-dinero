@@ -4,10 +4,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { getCategories, addTransaction } from '../database/database';
+import { getCategories, getAccounts, addTransaction } from '../database/database';
 import { CategorySelector } from '../components/CategorySelector';
 import { DatePickerModal } from '../components/DatePickerModal';
-import { Category } from '../types';
+import { Category, Account } from '../types';
 
 export function AddTransactionScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -16,12 +16,15 @@ export function AddTransactionScreen({ navigation }: any) {
   const [description, setDescription] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useFocusEffect(useCallback(() => {
     getCategories().then(setCategories);
+    getAccounts().then(setAccounts);
   }, []));
 
   const formatDate = (d: Date) => {
@@ -44,7 +47,7 @@ export function AddTransactionScreen({ navigation }: any) {
     }
     setSaving(true);
     try {
-      await addTransaction(parseFloat(amount), type, selectedCategory.id, description, formatDate(date));
+      await addTransaction(parseFloat(amount), type, selectedCategory.id, description, formatDate(date), selectedAccount?.id);
       navigation.goBack();
     } catch {
       Alert.alert('Error', 'No se pudo guardar la transaccion');
@@ -118,6 +121,31 @@ export function AddTransactionScreen({ navigation }: any) {
         onSelect={handleSelectDate}
         onClose={() => setShowPicker(false)}
       />
+
+      <Text style={styles.sectionLabel}>Cuenta</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll}>
+        {accounts.filter(a => {
+          const bal = a.id;
+          return true;
+        }).map(acc => (
+          <TouchableOpacity
+            key={acc.id}
+            style={[
+              styles.accountItem,
+              selectedAccount?.id === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '12' },
+            ]}
+            onPress={() => setSelectedAccount(selectedAccount?.id === acc.id ? null : acc)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.accountIcon, { backgroundColor: acc.color + '18' }]}>
+              <Ionicons name={acc.icon as any} size={20} color={acc.color} />
+            </View>
+            <Text style={[styles.accountName, selectedAccount?.id === acc.id && { color: acc.color, fontWeight: '700' }]}>
+              {acc.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       <Text style={styles.sectionLabel}>Categoria</Text>
       <CategorySelector
@@ -232,4 +260,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     letterSpacing: -0.3,
   },
+  accountScroll: { flexGrow: 0, paddingLeft: 20, marginBottom: 4 },
+  accountItem: {
+    alignItems: 'center', marginRight: 10, paddingVertical: 10, paddingHorizontal: 14,
+    borderRadius: 14, borderWidth: 1.5, borderColor: Colors.border,
+  },
+  accountIcon: { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  accountName: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, textAlign: 'center' },
 });

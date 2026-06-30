@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { DefaultCategories } from '../theme/colors';
-import { Transaction, Category, Budget, MonthlySummary, CategorySummary } from '../types';
+import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account } from '../types';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -11,7 +11,7 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
   return db;
 }
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export async function initDatabase(): Promise<void> {
   const database = await openDatabase();
@@ -60,6 +60,45 @@ export async function initDatabase(): Promise<void> {
       }
     }
 
+    await database.execAsync(`PRAGMA user_version = 1`);
+  }
+
+  if (currentVersion < 2) {
+    await database.execAsync(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('cash', 'bank', 'digital')),
+        bank_name TEXT DEFAULT '',
+        account_number TEXT DEFAULT '',
+        icon TEXT NOT NULL,
+        color TEXT NOT NULL,
+        is_default INTEGER DEFAULT 0
+      );
+      ALTER TABLE transactions ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
+    `);
+
+    const accCount = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM accounts');
+    if (accCount?.count === 0) {
+      const defaultAccounts = [
+        { name: 'Efectivo', type: 'cash', bank_name: '', icon: 'cash-outline', color: '#10B981' },
+        { name: 'BCP', type: 'bank', bank_name: 'BCP', icon: 'business-outline', color: '#3B82F6' },
+        { name: 'Interbank', type: 'bank', bank_name: 'Interbank', icon: 'business-outline', color: '#8B5CF6' },
+        { name: 'Yape', type: 'digital', bank_name: 'BCP', icon: 'phone-portrait-outline', color: '#E04848' },
+      ];
+      for (const a of defaultAccounts) {
+        await database.runAsync(
+          'INSERT INTO accounts (name, type, bank_name, icon, color, is_default) VALUES (?, ?, ?, ?, ?, 1)',
+          [a.name, a.type, a.bank_name, a.icon, a.color]
+        );
+      }
+    }
+
+    const txCount = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM pragma_table_info("transactions") WHERE name="account_id"');
+    if (txCount?.count === 0) {
+      await database.execAsync('ALTER TABLE transactions ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL');
+    }
+
     await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 }
@@ -102,17 +141,87 @@ export async function deleteCategory(id: number): Promise<void> {
   });
 }
 
+export async function getAccounts(): Promise<Account[]> {
+  const database = await openDatabase();
+  return database.getAllAsync<Account>('SELECT * FROM accounts ORDER BY type, name');
+}
+
+export async function getAccountBalance(id: number): Promise<number> {
+  const database = await openDatabase();
+  const result = await database.getFirstAsync<{ balance: number }>(
+    `SELECT COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as balance
+     FROM transactions WHERE account_id = ?`,
+    [id]
+  );
+  return result?.balance ?? 0;
+}
+
+export async function getBalancesByAccount(): Promise<{ id: number; name: string; type: string; icon: string; color: string; balance: number }[]> {
+  const database = await openDatabase();
+  return database.getAllAsync<any>(
+    `SELECT a.id, a.name, a.type, a.icon, a.color,
+       COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) -
+       COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as balance
+     FROM accounts a
+     LEFT JOIN transactions t ON a.id = t.account_id
+     GROUP BY a.id
+     ORDER BY a.type, a.name`
+  );
+}
+
+export async function addAccount(
+  name: string,
+  type: 'cash' | 'bank' | 'digital',
+  bank_name: string,
+  account_number: string,
+  icon: string,
+  color: string
+): Promise<number> {
+  const database = await openDatabase();
+  const result = await database.runAsync(
+    'INSERT INTO accounts (name, type, bank_name, account_number, icon, color, is_default) VALUES (?, ?, ?, ?, ?, ?, 0)',
+    [name, type, bank_name, account_number, icon, color]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateAccount(
+  id: number,
+  name: string,
+  type: 'cash' | 'bank' | 'digital',
+  bank_name: string,
+  account_number: string,
+  icon: string,
+  color: string
+): Promise<void> {
+  const database = await openDatabase();
+  await database.runAsync(
+    'UPDATE accounts SET name = ?, type = ?, bank_name = ?, account_number = ?, icon = ?, color = ? WHERE id = ?',
+    [name, type, bank_name, account_number, icon, color, id]
+  );
+}
+
+export async function deleteAccount(id: number): Promise<void> {
+  const database = await openDatabase();
+  await database.runAsync(
+    'UPDATE transactions SET account_id = NULL WHERE account_id = ?', [id]
+  );
+  await database.runAsync('DELETE FROM accounts WHERE id = ? AND is_default = 0', [id]);
+}
+
 export async function addTransaction(
   amount: number,
   type: 'income' | 'expense',
   category_id: number,
   description: string,
-  date: string
+  date: string,
+  account_id?: number
 ): Promise<number> {
   const database = await openDatabase();
   const result = await database.runAsync(
-    'INSERT INTO transactions (amount, type, category_id, description, date) VALUES (?, ?, ?, ?, ?)',
-    [amount, type, category_id, description, date]
+    'INSERT INTO transactions (amount, type, category_id, description, date, account_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [amount, type, category_id, description, date, account_id ?? null]
   );
   return result.lastInsertRowId;
 }
@@ -122,19 +231,23 @@ export async function getTransactions(
   category_id?: number,
   month?: number,
   year?: number,
-  search?: string
+  search?: string,
+  account_id?: number
 ): Promise<Transaction[]> {
   const database = await openDatabase();
   let query = `
-    SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+    SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+       COALESCE(a.name, '') as account_name
     FROM transactions t
     JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts a ON t.account_id = a.id
     WHERE 1=1
   `;
   const params: any[] = [];
 
   if (type) { query += ' AND t.type = ?'; params.push(type); }
   if (category_id) { query += ' AND t.category_id = ?'; params.push(category_id); }
+  if (account_id) { query += ' AND t.account_id = ?'; params.push(account_id); }
   if (month && year) {
     query += " AND CAST(strftime('%m', t.date) AS INTEGER) = ? AND CAST(strftime('%Y', t.date) AS INTEGER) = ?";
     params.push(month, year);

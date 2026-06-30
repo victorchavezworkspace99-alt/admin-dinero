@@ -13,6 +13,7 @@ import { ReportsScreen } from '../screens/ReportsScreen';
 import { BudgetsScreen } from '../screens/BudgetsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { MoreScreen } from '../screens/MoreScreen';
+import { ManageAccountsScreen } from '../screens/ManageAccountsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -65,6 +66,7 @@ function MoreStack() {
       <Stack.Screen name="MoreMain" component={MoreScreen} />
       <Stack.Screen name="SettingsMain" component={SettingsScreen} />
       <Stack.Screen name="Categories" component={CategoriesScreen} />
+      <Stack.Screen name="Accounts" component={ManageAccountsScreen} />
     </Stack.Navigator>
   );
 }
