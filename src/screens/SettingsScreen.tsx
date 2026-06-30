@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, FlatList, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../theme/ThemeContext';
 import { CURRENCIES, Currency, ThemeMode } from '../store/SettingsStore';
 import { exportTransactionsToCSV } from '../utils/exportCSV';
@@ -48,6 +46,7 @@ export function SettingsScreen() {
     try {
       const { exportDatabase } = await import('../database/database');
       const uri = await exportDatabase();
+      const Sharing = await import('expo-sharing');
       const avail = await Sharing.isAvailableAsync();
       if (avail) {
         await Sharing.shareAsync(uri, { mimeType: 'application/octet-stream', dialogTitle: 'Respaldar Base de Datos' });
@@ -63,6 +62,7 @@ export function SettingsScreen() {
   const handleImport = async () => {
     setImporting(true);
     try {
+      const DocumentPicker = await import('expo-document-picker');
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) { setImporting(false); return; }
       const file = result.assets[0];

@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { File, Paths, Directory } from 'expo-file-system';
+import type { File as ExpoFile, Directory as ExpoDirectory } from 'expo-file-system';
 import { DefaultCategories } from '../theme/colors';
 import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account } from '../types';
 
@@ -421,8 +421,9 @@ export async function getCategorySummaryForDateRange(
 }
 
 export async function exportDatabase(): Promise<string> {
-  const src = new File(new Directory(Paths.document, 'SQLite'), 'finanzas.db');
-  const dest = new File(Paths.cache, 'BalancePro-backup.db');
+  const { File, Directory, Paths } = await import('expo-file-system');
+  const src: ExpoFile = new File(new Directory(Paths.document, 'SQLite'), 'finanzas.db');
+  const dest: ExpoFile = new File(Paths.cache, 'BalancePro-backup.db');
   await src.copy(dest, { overwrite: true });
   return dest.uri;
 }
@@ -432,11 +433,12 @@ export async function importDatabase(fileUri: string): Promise<void> {
     await db.closeAsync();
     db = null;
   }
-  const dbDir = new Directory(Paths.document, 'SQLite');
+  const { File, Directory, Paths } = await import('expo-file-system');
+  const dbDir: ExpoDirectory = new Directory(Paths.document, 'SQLite');
   if (!dbDir.exists) {
     dbDir.create({ intermediates: true });
   }
-  const srcFile = new File(fileUri);
-  const destFile = new File(dbDir, 'finanzas.db');
+  const srcFile: ExpoFile = new File(fileUri);
+  const destFile: ExpoFile = new File(dbDir, 'finanzas.db');
   await srcFile.copy(destFile, { overwrite: true });
 }
