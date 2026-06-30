@@ -23,11 +23,10 @@ export async function initDatabase(): Promise<void> {
     currentVersion = versionResult?.user_version ?? 0;
   } catch {
     if (db) { await db.closeAsync(); db = null; }
-    const { File, Directory, Paths } = await import('expo-file-system');
-    const dbFile = new File(new Directory(Paths.document, 'SQLite'), 'finanzas.db');
-    if (dbFile.exists) {
-      dbFile.delete();
-    }
+    try {
+      const { deleteDatabaseAsync } = await import('expo-sqlite');
+      await deleteDatabaseAsync('finanzas.db');
+    } catch {}
     database = await openDatabase();
     currentVersion = 0;
   }
@@ -433,8 +432,9 @@ export async function getCategorySummaryForDateRange(
 }
 
 export async function exportDatabase(): Promise<string> {
-  const { File, Directory, Paths } = await import('expo-file-system');
-  const src: ExpoFile = new File(new Directory(Paths.document, 'SQLite'), 'finanzas.db');
+  const { defaultDatabaseDirectory } = await import('expo-sqlite');
+  const { File, Paths } = await import('expo-file-system');
+  const src: ExpoFile = new File(defaultDatabaseDirectory, 'finanzas.db');
   const dest: ExpoFile = new File(Paths.cache, 'BalancePro-backup.db');
   await src.copy(dest, { overwrite: true });
   return dest.uri;
@@ -445,12 +445,9 @@ export async function importDatabase(fileUri: string): Promise<void> {
     await db.closeAsync();
     db = null;
   }
-  const { File, Directory, Paths } = await import('expo-file-system');
-  const dbDir: ExpoDirectory = new Directory(Paths.document, 'SQLite');
-  if (!dbDir.exists) {
-    dbDir.create({ intermediates: true });
-  }
+  const { defaultDatabaseDirectory } = await import('expo-sqlite');
+  const { File } = await import('expo-file-system');
   const srcFile: ExpoFile = new File(fileUri);
-  const destFile: ExpoFile = new File(dbDir, 'finanzas.db');
+  const destFile: ExpoFile = new File(defaultDatabaseDirectory, 'finanzas.db');
   await srcFile.copy(destFile, { overwrite: true });
 }

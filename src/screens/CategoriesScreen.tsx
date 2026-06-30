@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ const ICONS = ['briefcase', 'laptop', 'trending-up', 'cart', 'cash', 'fast-food'
 
 export function CategoriesScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editItem, setEditItem] = useState<Category | null>(null);
   const [name, setName] = useState('');
@@ -20,6 +21,15 @@ export function CategoriesScreen() {
   useFocusEffect(useCallback(() => {
     getCategories().then(setCategories);
   }, []));
+
+  const filtered = useMemo(() => {
+    if (!search) return categories;
+    const q = search.toLowerCase();
+    return categories.filter(c => c.name.toLowerCase().includes(q));
+  }, [categories, search]);
+
+  const incomeCats = filtered.filter(c => c.type === 'income');
+  const expenseCats = filtered.filter(c => c.type === 'expense');
 
   const openAdd = (type: 'income' | 'expense') => {
     setEditItem(null);
@@ -88,8 +98,10 @@ export function CategoriesScreen() {
     </TouchableOpacity>
   );
 
-  const incomeCats = categories.filter(c => c.type === 'income');
-  const expenseCats = categories.filter(c => c.type === 'expense');
+  const sections = [
+    { type: 'income' as const, label: 'Ingresos', data: incomeCats },
+    { type: 'expense' as const, label: 'Gastos', data: expenseCats },
+  ].filter(s => !search || s.data.length > 0);
 
   return (
     <View style={styles.container}>
@@ -97,11 +109,24 @@ export function CategoriesScreen() {
         <Text style={styles.title}>Categorias</Text>
       </View>
 
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={16} color={Colors.textLight} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar categoria..."
+          placeholderTextColor={Colors.textLight}
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search ? (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={16} color={Colors.textLight} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
       <FlatList
-        data={[
-          { type: 'income' as const, label: 'Ingresos', data: incomeCats },
-          { type: 'expense' as const, label: 'Gastos', data: expenseCats },
-        ]}
+        data={sections}
         keyExtractor={(item) => item.type}
         renderItem={({ item }) => (
           <View>
@@ -184,6 +209,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   title: { fontSize: 22, fontWeight: '800', color: Colors.surface, letterSpacing: -0.5 },
+  searchContainer: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface,
+    marginHorizontal: 16, marginTop: 12, borderRadius: 12,
+    paddingHorizontal: 12, height: 40, gap: 6,
+    shadowColor: Colors.cardShadow, shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1, shadowRadius: 4, elevation: 1,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.text, paddingVertical: 0 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
