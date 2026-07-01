@@ -12,14 +12,11 @@ import { Category, Account, Transaction } from '../types';
 export function AddTransactionScreen({ navigation }: any) {
   const { colors: c } = useTheme();
   const insets = useSafeAreaInsets();
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const route = useRoute();
   const editTx = (route.params as any)?.transaction as Transaction | undefined;
   const isEditing = !!editTx;
-
-  const parseDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? new Date() : d;
-  };
 
   const [type, setType] = useState<'income' | 'expense'>((editTx?.type as any) || 'expense');
   const [amount, setAmount] = useState(editTx ? String(editTx.amount) : '');
@@ -28,7 +25,7 @@ export function AddTransactionScreen({ navigation }: any) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [date, setDate] = useState(editTx ? parseDate(editTx.date) : new Date());
+  const [dateStr, setDateStr] = useState(editTx?.date || todayStr);
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -49,15 +46,6 @@ export function AddTransactionScreen({ navigation }: any) {
     });
   }, [editTx]));
 
-  const formatDate = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const handleSelectDate = (d: Date) => setDate(d);
-
   const handleSave = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert('Monto Invalido', 'Ingresa un monto mayor a cero');
@@ -70,9 +58,9 @@ export function AddTransactionScreen({ navigation }: any) {
     setSaving(true);
     try {
       if (isEditing && editTx) {
-        await updateTransaction(editTx.id, parseFloat(amount), type, selectedCategory.id, description, formatDate(date), selectedAccount?.id);
+        await updateTransaction(editTx.id, parseFloat(amount), type, selectedCategory.id, description, dateStr, selectedAccount?.id);
       } else {
-        await addTransaction(parseFloat(amount), type, selectedCategory.id, description, formatDate(date), selectedAccount?.id);
+        await addTransaction(parseFloat(amount), type, selectedCategory.id, description, dateStr, selectedAccount?.id);
       }
       navigation.goBack();
     } catch {
@@ -137,14 +125,14 @@ export function AddTransactionScreen({ navigation }: any) {
         <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.background, justifyContent: 'center', alignItems: 'center' }}>
           <Ionicons name="calendar-outline" size={18} color={c.textSecondary} />
         </View>
-        <Text style={{ flex: 1, fontSize: 15, color: c.text, fontWeight: '500' }}>{formatDate(date)}</Text>
+        <Text style={{ flex: 1, fontSize: 15, color: c.text, fontWeight: '500' }}>{dateStr}</Text>
         <Ionicons name="chevron-down" size={18} color={c.textLight} />
       </TouchableOpacity>
 
       <DatePickerModal
         visible={showPicker}
-        date={date}
-        onSelect={handleSelectDate}
+        dateStr={dateStr}
+        onSelect={setDateStr}
         onClose={() => setShowPicker(false)}
       />
 

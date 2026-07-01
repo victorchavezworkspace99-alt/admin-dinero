@@ -628,8 +628,8 @@ const ss = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 },
   title: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
 
-  tabBar: { flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 8 },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBar: { borderBottomWidth: 1, paddingHorizontal: 4 },
+  tab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 10, gap: 4, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomWidth: 2 },
   tabLabel: { fontSize: 12, fontWeight: '600' },
 

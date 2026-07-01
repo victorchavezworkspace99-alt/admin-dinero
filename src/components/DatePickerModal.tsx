@@ -5,8 +5,8 @@ import { useTheme } from '../theme/ThemeContext';
 
 interface Props {
   visible: boolean;
-  date: Date;
-  onSelect: (date: Date) => void;
+  dateStr: string;
+  onSelect: (dateStr: string) => void;
   onClose: () => void;
 }
 
@@ -16,22 +16,28 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.88, 360);
 const CELL_SIZE = Math.floor((CARD_WIDTH - 32) / 7);
 
-export function DatePickerModal({ visible, date, onSelect, onClose }: Props) {
+function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
+
+export function DatePickerModal({ visible, dateStr, onSelect, onClose }: Props) {
   const { colors: c } = useTheme();
-  const [viewDate, setViewDate] = useState(date);
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const [viewDate, setViewDate] = useState(() => {
+    const parts = dateStr.split('-').map(Number);
+    return new Date(parts[0], parts[1] - 1, 1);
+  });
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
 
   const prev = () => setViewDate(new Date(year, month - 1, 1));
   const next = () => setViewDate(new Date(year, month + 1, 1));
 
   const handleSelect = (day: number) => {
-    const selected = new Date(year, month, day);
-    if (selected <= today) {
+    const selected = `${year}-${pad(month + 1)}-${pad(day)}`;
+    if (selected <= todayStr) {
       onSelect(selected);
       onClose();
     }
@@ -69,9 +75,10 @@ export function DatePickerModal({ visible, date, onSelect, onClose }: Props) {
               <View key={ri} style={{ flexDirection: 'row' }}>
                 {row.map((day, di) => {
                   if (day === null) return <View key={`e-${di}`} style={{ width: CELL_SIZE, height: CELL_SIZE, justifyContent: 'center', alignItems: 'center' }} />;
-                  const isSelected = day === date.getDate() && month === date.getMonth() && year === date.getFullYear();
-                  const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                  const isPast = new Date(year, month, day) <= today;
+                  const dayStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+                  const isSelected = dayStr === dateStr;
+                  const isToday = dayStr === todayStr;
+                  const isPast = dayStr <= todayStr;
                   return (
                     <TouchableOpacity
                       key={day}
@@ -93,7 +100,7 @@ export function DatePickerModal({ visible, date, onSelect, onClose }: Props) {
               </View>
             ))}
 
-            <TouchableOpacity style={{ alignSelf: 'center', marginTop: 12, paddingVertical: 8, paddingHorizontal: 24, borderRadius: 12, backgroundColor: c.primary + '12' }} onPress={() => handleSelect(today.getDate())}>
+            <TouchableOpacity style={{ alignSelf: 'center', marginTop: 12, paddingVertical: 8, paddingHorizontal: 24, borderRadius: 12, backgroundColor: c.primary + '12' }} onPress={() => handleSelect(now.getDate())}>
               <Text style={{ color: c.primary, fontWeight: '700', fontSize: 14 }}>Hoy</Text>
             </TouchableOpacity>
           </View>

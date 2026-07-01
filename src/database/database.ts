@@ -502,25 +502,27 @@ export async function getCategorySummaryForDateRange(
   return summaries;
 }
 
+export async function getDatabasePath(): Promise<string> {
+  const database = await openDatabase();
+  const row = await database.getFirstAsync<{ file: string }>('PRAGMA database_list');
+  return row?.file || '';
+}
+
 export async function exportDatabase(): Promise<string> {
-  const { defaultDatabaseDirectory } = await import('expo-sqlite');
+  const dbPath = await getDatabasePath();
   const { cacheDirectory, copyAsync } = await import('expo-file-system/legacy');
-  const dbDir = typeof defaultDatabaseDirectory === 'string' ? defaultDatabaseDirectory : `${cacheDirectory}SQLite/`;
-  const dbPath = dbDir.endsWith('/') ? `${dbDir}finanzas.db` : `${dbDir}/finanzas.db`;
   const destPath = `${cacheDirectory}BalancePro-backup.db`;
   await copyAsync({ from: dbPath, to: destPath });
   return destPath;
 }
 
 export async function importDatabase(legacyFileUri: string): Promise<void> {
+  const dbPath = await getDatabasePath();
   if (db) {
     await db.closeAsync();
     db = null;
   }
-  const { defaultDatabaseDirectory } = await import('expo-sqlite');
-  const { cacheDirectory, copyAsync } = await import('expo-file-system/legacy');
-  const dbDir = typeof defaultDatabaseDirectory === 'string' ? defaultDatabaseDirectory : `${cacheDirectory}SQLite/`;
-  const dbPath = dbDir.endsWith('/') ? `${dbDir}finanzas.db` : `${dbDir}/finanzas.db`;
+  const { copyAsync } = await import('expo-file-system/legacy');
   await copyAsync({ from: legacyFileUri, to: dbPath });
 }
 
