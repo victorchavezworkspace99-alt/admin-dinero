@@ -1,5 +1,5 @@
 {
-  "latestVersion": "1.0.1",
-  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.0.1/BalancePro-v1.0.1.apk",
-  "changelog": "• DatePickerModal: calendario sin solapamiento\n• Export DB: fix btoa (Hermes)\n• Presupuestos fijos: sin duplicacion al navegar\n• ReportsScreen: tabs sin solapamiento (ScrollView)\n• DateRangeFilter: filtro por rango de fechas en Inicio/Reportes/Presupuestos\n• Mejoras de estabilidad y rendimiento"
+  "latestVersion": "1.0.2",
+  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.0.2/BalancePro-v1.0.2.apk",
+  "changelog": "• Dark splash screen (modo oscuro)\n• Overlay de descarga con % de progreso (OTA + APK)\n• ReportsScreen navbar compacto\n• Export DB con SAF requestDirectoryPermissions\n• Eliminar cuentas/categorias sin transacciones\n• Fix download APK con expo-file-system/legacy\n• Correcciones de estabilidad y rendimiento"
 }
