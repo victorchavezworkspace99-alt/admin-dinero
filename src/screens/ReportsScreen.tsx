@@ -625,15 +625,15 @@ export function ReportsScreen() {
 
 const ss = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 },
+  header: { paddingHorizontal: 20, paddingTop: 48, paddingBottom: 6 },
   title: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
 
   tabBar: { borderBottomWidth: 1, paddingHorizontal: 0 },
-  tab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 6, gap: 2, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 6, gap: 2, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomWidth: 2 },
   tabLabel: { fontSize: 12, fontWeight: '600' },
 
-  balanceCard: { marginHorizontal: 16, marginTop: 16, borderRadius: 24, padding: 24, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
+  balanceCard: { marginHorizontal: 16, marginTop: 4, borderRadius: 24, padding: 24, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
   balanceLabel: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
   balanceAmount: { fontSize: 34, fontWeight: '800', textAlign: 'center', marginTop: 6, letterSpacing: -1 },
   balanceMiniRow: { flexDirection: 'row', marginTop: 20, gap: 16 },
@@ -642,29 +642,29 @@ const ss = StyleSheet.create({
   balanceMiniLabel: { fontSize: 12, marginTop: 4 },
   balanceMiniVal: { fontSize: 15, fontWeight: '700', marginTop: 2 },
 
-  statsRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 12, gap: 8 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 6, gap: 8 },
   statCard: { flex: 1, borderRadius: 18, padding: 14, alignItems: 'center', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1 },
   statIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   statLabel: { fontSize: 11, marginTop: 6, fontWeight: '500' },
   statVal: { fontSize: 16, fontWeight: '800', marginTop: 2, letterSpacing: -0.3 },
 
-  sectionCard: { marginHorizontal: 16, marginTop: 16, borderRadius: 22, padding: 20, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  sectionCard: { marginHorizontal: 16, marginTop: 8, borderRadius: 22, padding: 20, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
   sectionTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
   sectionSub: { fontSize: 12, marginTop: 2, marginBottom: 12 },
 
-  filterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 16 },
+  filterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 4 },
   monthNav: { flexDirection: 'row', alignItems: 'center' },
   monthBtn: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
   monthText: { fontSize: 15, fontWeight: '700', marginHorizontal: 14, letterSpacing: -0.3 },
   toggleBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18 },
   toggleText: { fontSize: 12, fontWeight: '600' },
 
-  chartCard: { marginHorizontal: 16, marginTop: 12, borderRadius: 22, padding: 16, alignItems: 'center', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
-  emptyCard: { marginHorizontal: 16, marginTop: 12, borderRadius: 22, padding: 48, alignItems: 'center', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  chartCard: { marginHorizontal: 16, marginTop: 8, borderRadius: 22, padding: 16, alignItems: 'center', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+  emptyCard: { marginHorizontal: 16, marginTop: 8, borderRadius: 22, padding: 48, alignItems: 'center', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
   emptyRing: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
   emptyText: { fontSize: 14, marginTop: 12 },
 
-  legendWrap: { paddingHorizontal: 16, marginTop: 8, paddingBottom: 16 },
+  legendWrap: { paddingHorizontal: 16, marginTop: 4, paddingBottom: 16 },
   legendItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, marginBottom: 4, overflow: 'hidden' },
   legendBar: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.12, borderRadius: 14 },
   legendName: { flex: 1, fontSize: 14, fontWeight: '500' },
@@ -680,7 +680,7 @@ const ss = StyleSheet.create({
   progressBar: { height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 14 },
   progressFill: { height: '100%', borderRadius: 4 },
   budgetPercentText: { fontSize: 12, textAlign: 'center', marginTop: 8, fontWeight: '500' },
-  budgetItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
+  budgetItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
   budgetItemLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
   budgetItemIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   budgetItemName: { fontSize: 14, fontWeight: '600' },
