@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { CURRENCIES, Currency, ThemeMode } from '../store/SettingsStore';
 import { exportTransactionsToCSV } from '../utils/exportCSV';
+import Constants from 'expo-constants';
 
 export function SettingsScreen() {
   const { colors, settings, updateSettings } = useTheme();
@@ -82,6 +83,9 @@ export function SettingsScreen() {
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
+
+    // 1. Check OTA (JS) updates
+    let otaOk = false;
     try {
       const Updates = await import('expo-updates');
       const update = await Updates.checkForUpdateAsync();
@@ -96,19 +100,30 @@ export function SettingsScreen() {
         setCheckingUpdate(false);
         return;
       }
+      otaOk = true;
+    } catch (e) {
+      otaOk = false;
+    }
+
+    // 2. Check native (APK) updates
+    let nativeUpdate: any = null;
+    try {
+      const { checkNativeUpdate } = await import('../utils/checkNativeUpdate');
+      nativeUpdate = await checkNativeUpdate();
     } catch {}
 
-    const { checkNativeUpdate, downloadAndInstallAPK } = await import('../utils/checkNativeUpdate');
-    const nativeUpdate = await checkNativeUpdate();
     if (nativeUpdate) {
+      const { downloadAndInstallAPK } = await import('../utils/checkNativeUpdate');
       Alert.alert(
-        'Nueva version disponible',
+        'Nueva version APK disponible',
         `v${nativeUpdate.latestVersion}\n\n${nativeUpdate.changelog}`,
         [
           { text: 'Descargar e Instalar', onPress: () => downloadAndInstallAPK(nativeUpdate.apkUrl, nativeUpdate.latestVersion) },
           { text: 'Ahora no', style: 'cancel' },
         ]
       );
+    } else if (!otaOk) {
+      Alert.alert('Error de conexion', 'No se pudo verificar actualizaciones OTA. Revisa tu conexion a internet.');
     } else {
       Alert.alert('Sin actualizaciones', 'Ya tienes la version mas reciente');
     }
@@ -207,7 +222,7 @@ export function SettingsScreen() {
     {
       label: 'Sistema',
       items: [
-        { icon: 'phone-portrait-outline', label: 'Version', value: '1.0.0', color: c.textSecondary },
+        { icon: 'phone-portrait-outline', label: 'Version', value: `v${Constants.expoConfig?.version || '1.0.0'}`, color: c.textSecondary },
         {
           icon: 'cloud-download-outline', label: 'Buscar Actualizaciones', value: checkingUpdate ? 'Buscando...' : '',
           color: '#3B82F6', onPress: handleCheckUpdate,
