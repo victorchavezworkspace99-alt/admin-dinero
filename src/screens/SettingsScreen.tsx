@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { CURRENCIES, Currency, ThemeMode } from '../store/SettingsStore';
 import { exportTransactionsToCSV } from '../utils/exportCSV';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
 export function SettingsScreen() {
@@ -47,16 +48,45 @@ export function SettingsScreen() {
     try {
       const { exportDatabase } = await import('../database/database');
       const srcUri = await exportDatabase();
-      const { readAsStringAsync } = await import('expo-file-system/legacy');
+      const { readAsStringAsync, StorageAccessFramework } = await import('expo-file-system/legacy');
       const base64 = await readAsStringAsync(srcUri, { encoding: 'base64' });
-      const { StorageAccessFramework } = await import('expo-file-system/legacy');
-      const destUri = await StorageAccessFramework.createFileAsync(
-        StorageAccessFramework.getUriForDirectoryInRoot('Downloads'),
-        'BalancePro-backup.db',
-        'application/octet-stream'
-      );
-      await StorageAccessFramework.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
-      Alert.alert('Exportado', 'Base de datos guardada en la carpeta Descargas.');
+
+      let destUri: string | null = null;
+
+      // Try cached SAF URI
+      const cachedUri = await AsyncStorage.getItem('@backup_saf_uri');
+      if (cachedUri) {
+        try {
+          destUri = await StorageAccessFramework.createFileAsync(
+            cachedUri, 'BalancePro-backup.db', 'application/octet-stream'
+          );
+          await StorageAccessFramework.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
+        } catch {
+          await AsyncStorage.removeItem('@backup_saf_uri');
+        }
+      }
+
+      // If no cached URI or it failed, request permission (default to Downloads)
+      if (!destUri) {
+        const downloadsUri = StorageAccessFramework.getUriForDirectoryInRoot('Downloads');
+        const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync(downloadsUri);
+        if (permissions.granted) {
+          await AsyncStorage.setItem('@backup_saf_uri', permissions.directoryUri);
+          destUri = await StorageAccessFramework.createFileAsync(
+            permissions.directoryUri, 'BalancePro-backup.db', 'application/octet-stream'
+          );
+          await StorageAccessFramework.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
+        }
+      }
+
+      if (destUri) {
+        Alert.alert('Exportado', 'Copia de seguridad guardada correctamente.');
+      } else {
+        Alert.alert(
+          'No se pudo guardar',
+          `La copia temporal esta en ${srcUri}. Usa un gestor de archivos para copiarla manualmente.`
+        );
+      }
     } catch (e: any) {
       Alert.alert('Error', `No se pudo exportar: ${e?.message || e || 'error desconocido'}`);
     }
@@ -74,7 +104,20 @@ export function SettingsScreen() {
       await initDatabase();
       Alert.alert('Importado', 'Base de datos restaurada correctamente. Reinicia la app para aplicar los cambios.');
     } catch {
-      Alert.alert('Error', 'No se pudo importar la base de datos. Asegurate de seleccionar un archivo .db valido.');
+      try {
+        const { StorageAccessFramework } = await import('expo-file-system/legacy');
+        const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permissions.granted) { setImporting(false); return; }
+        const files = await StorageAccessFramework.readDirectoryAsync(permissions.directoryUri);
+        const dbFile = files.find(f => f.endsWith('.db'));
+        if (!dbFile) { Alert.alert('No hay archivos .db en esa carpeta'); setImporting(false); return; }
+        const { importDatabase, initDatabase } = await import('../database/database');
+        await importDatabase(dbFile);
+        await initDatabase();
+        Alert.alert('Importado', 'Base de datos restaurada. Reinicia la app.');
+      } catch {
+        Alert.alert('Error', 'No se pudo importar la base de datos.');
+      }
     }
     setImporting(false);
   };
