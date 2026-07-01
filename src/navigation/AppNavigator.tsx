@@ -15,6 +15,8 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { MoreScreen } from '../screens/MoreScreen';
 import { ManageAccountsScreen } from '../screens/ManageAccountsScreen';
 import { RecurringTransactionsScreen } from '../screens/RecurringTransactionsScreen';
+import { BackupAndImportScreen } from '../screens/BackupAndImportScreen';
+import { CsvImportPreviewScreen } from '../screens/CsvImportPreviewScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -69,6 +71,8 @@ function MoreStack() {
       <Stack.Screen name="Categories" component={CategoriesScreen} />
       <Stack.Screen name="Accounts" component={ManageAccountsScreen} />
       <Stack.Screen name="RecurringTransactions" component={RecurringTransactionsScreen} />
+      <Stack.Screen name="BackupAndImport" component={BackupAndImportScreen} />
+      <Stack.Screen name="CsvImportPreview" component={CsvImportPreviewScreen} />
     </Stack.Navigator>
   );
 }

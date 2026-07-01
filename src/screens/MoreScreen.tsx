@@ -9,6 +9,7 @@ export function MoreScreen({ navigation }: any) {
     { icon: 'wallet-outline', label: 'Cuentas', screen: 'Accounts', color: '#10B981' },
     { icon: 'grid-outline', label: 'Categorias', screen: 'Categories', color: '#8B5CF6' },
     { icon: 'repeat-outline', label: 'Transacciones Programadas', screen: 'RecurringTransactions', color: '#F59E0B' },
+    { icon: 'cloud-upload-outline', label: 'Copia e Importaciones', screen: 'BackupAndImport', color: '#3B82F6' },
     { icon: 'settings-outline', label: 'Configuracion', screen: 'SettingsMain', color: c.textSecondary },
   ];
 

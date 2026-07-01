@@ -9,11 +9,12 @@ let db: SQLite.SQLiteDatabase | null = null;
 export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (!db) {
     db = await SQLite.openDatabaseAsync('finanzas.db');
+    await db.execAsync('PRAGMA foreign_keys = ON');
   }
   return db;
 }
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 export async function initDatabase(): Promise<void> {
   let database = await openDatabase();
@@ -196,6 +197,25 @@ export async function initDatabase(): Promise<void> {
 
     await database.execAsync(`PRAGMA user_version = 4`);
   }
+
+  if (currentVersion < 5) {
+    await database.execAsync(`
+      CREATE TABLE IF NOT EXISTS import_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT NOT NULL,
+        imported_at TEXT NOT NULL
+      );
+    `);
+
+    const txImportColExists = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM pragma_table_info("transactions") WHERE name="import_group_id"`
+    );
+    if (txImportColExists?.count === 0) {
+      await database.execAsync('ALTER TABLE transactions ADD COLUMN import_group_id INTEGER REFERENCES import_groups(id) ON DELETE CASCADE');
+    }
+
+    await database.execAsync(`PRAGMA user_version = 5`);
+  }
 }
 
 export async function getCategories(type?: 'income' | 'expense'): Promise<Category[]> {
@@ -321,12 +341,13 @@ export async function addTransaction(
   description: string,
   date: string,
   account_id?: number,
-  destination_account_id?: number
+  destination_account_id?: number,
+  import_group_id?: number | null
 ): Promise<number> {
   const database = await openDatabase();
   const result = await database.runAsync(
-    'INSERT INTO transactions (amount, type, category_id, description, date, account_id, destination_account_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [amount, type, category_id ?? null, description, date, account_id ?? null, destination_account_id ?? null]
+    'INSERT INTO transactions (amount, type, category_id, description, date, account_id, destination_account_id, import_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [amount, type, category_id ?? null, description, date, account_id ?? null, destination_account_id ?? null, import_group_id ?? null]
   );
   return result.lastInsertRowId;
 }
@@ -754,4 +775,45 @@ export async function updateRecurringTransaction(
 export async function deleteRecurringTransaction(id: number): Promise<void> {
   const database = await openDatabase();
   await database.runAsync('DELETE FROM recurring_transactions WHERE id = ?', [id]);
+}
+
+export async function getImportGroups(): Promise<{ id: number; filename: string; imported_at: string; count: number }[]> {
+  const database = await openDatabase();
+  return database.getAllAsync<{ id: number; filename: string; imported_at: string; count: number }>(
+    `SELECT ig.*, COUNT(t.id) as count
+     FROM import_groups ig
+     LEFT JOIN transactions t ON t.import_group_id = ig.id
+     GROUP BY ig.id
+     ORDER BY ig.id DESC`
+  );
+}
+
+export async function createImportGroup(filename: string): Promise<number> {
+  const database = await openDatabase();
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const result = await database.runAsync(
+    'INSERT INTO import_groups (filename, imported_at) VALUES (?, ?)',
+    [filename, dateStr]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function deleteImportGroup(id: number): Promise<void> {
+  const database = await openDatabase();
+  await database.runAsync('DELETE FROM import_groups WHERE id = ?', [id]);
+}
+
+export async function checkDuplicateTransaction(
+  amount: number,
+  date: string,
+  description: string,
+  account_id: number
+): Promise<boolean> {
+  const database = await openDatabase();
+  const row = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM transactions WHERE amount = ? AND date = ? AND description = ? AND account_id = ?',
+    [amount, date, description, account_id]
+  );
+  return (row?.count ?? 0) > 0;
 }
