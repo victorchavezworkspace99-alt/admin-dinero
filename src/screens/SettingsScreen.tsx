@@ -55,12 +55,10 @@ export function SettingsScreen() {
         'BalancePro-backup.db',
         'application/octet-stream'
       );
-      await StorageAccessFramework.writeAsStringAsync(destUri, base64, {
-        encoding: 'base64',
-      });
+      await StorageAccessFramework.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
       Alert.alert('Exportado', 'Base de datos guardada en la carpeta Descargas.');
-    } catch {
-      Alert.alert('Error', 'No se pudo exportar la base de datos');
+    } catch (e: any) {
+      Alert.alert('Error', `No se pudo exportar: ${e?.message || e || 'error desconocido'}`);
     }
     setBackingUp(false);
   };

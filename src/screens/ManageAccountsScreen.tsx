@@ -106,7 +106,7 @@ export function ManageAccountsScreen({ navigation }: any) {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ padding: 16, gap: 8 }}
         renderItem={({ item }) => (
-          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 8, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 }} onPress={() => openEdit(item)} activeOpacity={0.7}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 8, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 }} onPress={() => openEdit(item)} onLongPress={() => !item.is_default && handleDelete(item)} activeOpacity={0.7}>
             <View style={{ width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 14, backgroundColor: item.color + '18' }}>
               <Ionicons name={item.icon as any} size={24} color={item.color} />
             </View>

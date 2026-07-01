@@ -18,8 +18,10 @@ export function TransactionItem({ transaction, onPress, onLongPress }: Props) {
   const sign = isIncome ? '+' : '\u2212';
 
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    return `${parseInt(parts[2])} ${meses[parseInt(parts[1]) - 1] || ''}`;
   };
 
   return (

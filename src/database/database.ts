@@ -509,7 +509,13 @@ export async function getDatabasePath(): Promise<string> {
 }
 
 export async function exportDatabase(): Promise<string> {
-  const dbPath = await getDatabasePath();
+  let dbPath = await getDatabasePath();
+  if (!dbPath) {
+    const { defaultDatabaseDirectory } = await import('expo-sqlite');
+    const { cacheDirectory } = await import('expo-file-system/legacy');
+    const dir = typeof defaultDatabaseDirectory === 'string' ? defaultDatabaseDirectory : `${cacheDirectory}SQLite/`;
+    dbPath = dir.endsWith('/') ? `${dir}finanzas.db` : `${dir}/finanzas.db`;
+  }
   const { cacheDirectory, copyAsync } = await import('expo-file-system/legacy');
   const destPath = `${cacheDirectory}BalancePro-backup.db`;
   await copyAsync({ from: dbPath, to: destPath });
@@ -517,7 +523,13 @@ export async function exportDatabase(): Promise<string> {
 }
 
 export async function importDatabase(legacyFileUri: string): Promise<void> {
-  const dbPath = await getDatabasePath();
+  let dbPath = await getDatabasePath();
+  if (!dbPath) {
+    const { defaultDatabaseDirectory } = await import('expo-sqlite');
+    const { cacheDirectory } = await import('expo-file-system/legacy');
+    const dir = typeof defaultDatabaseDirectory === 'string' ? defaultDatabaseDirectory : `${cacheDirectory}SQLite/`;
+    dbPath = dir.endsWith('/') ? `${dir}finanzas.db` : `${dir}/finanzas.db`;
+  }
   if (db) {
     await db.closeAsync();
     db = null;
