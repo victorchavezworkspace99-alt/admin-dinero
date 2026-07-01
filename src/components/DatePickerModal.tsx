@@ -71,7 +71,7 @@ export function DatePickerModal({ visible, date, onSelect, onClose }: Props) {
                   if (day === null) return <View key={`e-${di}`} style={{ width: CELL_SIZE, height: CELL_SIZE, justifyContent: 'center', alignItems: 'center' }} />;
                   const isSelected = day === date.getDate() && month === date.getMonth() && year === date.getFullYear();
                   const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                  const isPast = new Date(year, month, day + 1) <= today;
+                  const isPast = new Date(year, month, day) <= today;
                   return (
                     <TouchableOpacity
                       key={day}
