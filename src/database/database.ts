@@ -157,11 +157,14 @@ export async function updateCategory(id: number, name: string, icon: string, col
 
 export async function deleteCategory(id: number): Promise<void> {
   const database = await openDatabase();
-  await database.withExclusiveTransactionAsync(async (txn) => {
-    await txn.runAsync('DELETE FROM transactions WHERE category_id = ?', [id]);
-    await txn.runAsync('DELETE FROM budgets WHERE category_id = ?', [id]);
-    await txn.runAsync('DELETE FROM categories WHERE id = ? AND is_default = 0', [id]);
-  });
+  const txCount = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM transactions WHERE category_id = ?', [id]
+  );
+  if ((txCount?.count ?? 0) > 0) {
+    throw new Error('No se puede eliminar una categoría con transacciones. Desvincula o elimina las transacciones primero.');
+  }
+  await database.runAsync('DELETE FROM budgets WHERE category_id = ?', [id]);
+  await database.runAsync('DELETE FROM categories WHERE id = ?', [id]);
 }
 
 export async function getAccounts(): Promise<Account[]> {
@@ -227,10 +230,13 @@ export async function updateAccount(
 
 export async function deleteAccount(id: number): Promise<void> {
   const database = await openDatabase();
-  await database.runAsync(
-    'UPDATE transactions SET account_id = NULL WHERE account_id = ?', [id]
+  const txCount = await database.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM transactions WHERE account_id = ?', [id]
   );
-  await database.runAsync('DELETE FROM accounts WHERE id = ? AND is_default = 0', [id]);
+  if ((txCount?.count ?? 0) > 0) {
+    throw new Error('No se puede eliminar una cuenta con transacciones. Desvincula o elimina las transacciones primero.');
+  }
+  await database.runAsync('DELETE FROM accounts WHERE id = ?', [id]);
 }
 
 export async function addTransaction(
@@ -516,9 +522,10 @@ export async function exportDatabase(): Promise<string> {
     const dir = typeof defaultDatabaseDirectory === 'string' ? defaultDatabaseDirectory : `${cacheDirectory}SQLite/`;
     dbPath = dir.endsWith('/') ? `${dir}finanzas.db` : `${dir}/finanzas.db`;
   }
+  const filePrefix = dbPath.startsWith('file://') ? '' : 'file://';
   const { cacheDirectory, copyAsync } = await import('expo-file-system/legacy');
   const destPath = `${cacheDirectory}BalancePro-backup.db`;
-  await copyAsync({ from: dbPath, to: destPath });
+  await copyAsync({ from: `${filePrefix}${dbPath}`, to: destPath });
   return destPath;
 }
 
@@ -534,8 +541,9 @@ export async function importDatabase(legacyFileUri: string): Promise<void> {
     await db.closeAsync();
     db = null;
   }
+  const filePrefix = dbPath.startsWith('file://') ? '' : 'file://';
   const { copyAsync } = await import('expo-file-system/legacy');
-  await copyAsync({ from: legacyFileUri, to: dbPath });
+  await copyAsync({ from: legacyFileUri, to: `${filePrefix}${dbPath}` });
 }
 
 export async function checkAndAutoCopyRecurringBudgets(): Promise<void> {

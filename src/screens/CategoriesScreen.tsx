@@ -74,10 +74,15 @@ export function CategoriesScreen() {
       Alert.alert('No se puede eliminar', 'Las categorias por defecto no pueden eliminarse');
       return;
     }
-    Alert.alert('Eliminar Categoria', `Eliminar "${cat.name}"? Las transacciones asociadas tambien se eliminaran.`, [
+    Alert.alert('Eliminar Categoria', `Eliminar "${cat.name}" permanentemente?`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => {
-        deleteCategory(cat.id).then(() => getCategories().then(setCategories));
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        try {
+          await deleteCategory(cat.id);
+          setCategories(await getCategories());
+        } catch (e: any) {
+          Alert.alert('Error', e?.message || 'No se pudo eliminar la categoria');
+        }
       }},
     ]);
   };

@@ -602,7 +602,7 @@ export function ReportsScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
         {tab === 'resumen' && renderResumen()}
         {tab === 'categorias' && renderCategorias()}
         {tab === 'tendencias' && renderTendencias()}

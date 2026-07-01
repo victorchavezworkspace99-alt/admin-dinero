@@ -77,12 +77,15 @@ export function ManageAccountsScreen({ navigation }: any) {
   };
 
   const handleDelete = (item: Account) => {
-    if (item.is_default) { Alert.alert('No disponible', 'No se puede eliminar una cuenta por defecto'); return; }
-    Alert.alert('Eliminar cuenta', `Se desvincularan las transacciones de "${item.name}"`, [
+    Alert.alert('Eliminar cuenta', `¿Eliminar "${item.name}" permanentemente?`, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteAccount(item.id);
-        load();
+        try {
+          await deleteAccount(item.id);
+          load();
+        } catch (e: any) {
+          Alert.alert('Error', e?.message || 'No se pudo eliminar la cuenta');
+        }
       }},
     ]);
   };
@@ -162,7 +165,7 @@ export function ManageAccountsScreen({ navigation }: any) {
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#FFFFFF' }}>Guardar</Text>
               </TouchableOpacity>
             </View>
-            {editItem && !editItem.is_default && (
+            {editItem && (
               <TouchableOpacity style={{ marginTop: 16, alignItems: 'center', paddingVertical: 10 }} onPress={() => { setModalVisible(false); handleDelete(editItem); }}>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: c.expense }}>Eliminar cuenta</Text>
               </TouchableOpacity>
