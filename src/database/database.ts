@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { File as ExpoFile, Directory as ExpoDirectory } from 'expo-file-system';
+
 import { DefaultCategories } from '../theme/colors';
 import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account } from '../types';
 
@@ -504,23 +504,24 @@ export async function getCategorySummaryForDateRange(
 
 export async function exportDatabase(): Promise<string> {
   const { defaultDatabaseDirectory } = await import('expo-sqlite');
-  const { File, Paths } = await import('expo-file-system');
-  const src: ExpoFile = new File(defaultDatabaseDirectory, 'finanzas.db');
-  const dest: ExpoFile = new File(Paths.cache, 'BalancePro-backup.db');
-  await src.copy(dest, { overwrite: true });
-  return dest.uri;
+  const { cacheDirectory, copyAsync } = await import('expo-file-system/legacy');
+  const dbDir = typeof defaultDatabaseDirectory === 'string' ? defaultDatabaseDirectory : `${cacheDirectory}SQLite/`;
+  const dbPath = dbDir.endsWith('/') ? `${dbDir}finanzas.db` : `${dbDir}/finanzas.db`;
+  const destPath = `${cacheDirectory}BalancePro-backup.db`;
+  await copyAsync({ from: dbPath, to: destPath });
+  return destPath;
 }
 
-export async function importDatabase(fileUri: string): Promise<void> {
+export async function importDatabase(legacyFileUri: string): Promise<void> {
   if (db) {
     await db.closeAsync();
     db = null;
   }
   const { defaultDatabaseDirectory } = await import('expo-sqlite');
-  const { File } = await import('expo-file-system');
-  const srcFile: ExpoFile = new File(fileUri);
-  const destFile: ExpoFile = new File(defaultDatabaseDirectory, 'finanzas.db');
-  await srcFile.copy(destFile, { overwrite: true });
+  const { cacheDirectory, copyAsync } = await import('expo-file-system/legacy');
+  const dbDir = typeof defaultDatabaseDirectory === 'string' ? defaultDatabaseDirectory : `${cacheDirectory}SQLite/`;
+  const dbPath = dbDir.endsWith('/') ? `${dbDir}finanzas.db` : `${dbDir}/finanzas.db`;
+  await copyAsync({ from: legacyFileUri, to: dbPath });
 }
 
 export async function checkAndAutoCopyRecurringBudgets(): Promise<void> {
