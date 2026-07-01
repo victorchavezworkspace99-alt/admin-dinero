@@ -28,9 +28,9 @@ export async function checkNativeUpdate(): Promise<UpdateInfo | null> {
 export async function downloadAndInstallAPK(
   apkUrl: string,
   version: string,
-  onProgress: (progress: number) => void
+  onProgress: (progress: number, bytesWritten: number, totalBytes: number) => void
 ): Promise<void> {
-  const { cacheDirectory, createDownloadResumable, StorageAccessFramework } = FileSystem;
+  const { cacheDirectory, createDownloadResumable } = FileSystem;
   const localUri = `${cacheDirectory}BalancePro-${version}.apk`;
 
   const downloadResumable = createDownloadResumable(
@@ -38,46 +38,44 @@ export async function downloadAndInstallAPK(
     localUri,
     {},
     (downloadProgress) => {
-      const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-      onProgress(Math.round(progress * 100));
+      const total = downloadProgress.totalBytesExpectedToWrite;
+      const written = downloadProgress.totalBytesWritten;
+      const progress = total > 0 ? Math.round((written / total) * 100) : -1;
+      onProgress(progress, written, total);
     }
   );
 
   try {
     const downloadResult = await downloadResumable.downloadAsync();
-    if (!downloadResult) throw new Error('Descarga vacia');
+    if (!downloadResult) throw new Error('Descarga vacía');
     const { uri } = downloadResult;
 
     if (Platform.OS === 'android') {
-      const { readAsStringAsync } = FileSystem;
-      const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
-
-      let downloadsUri = await AsyncStorage.getItem('@backup_saf_uri');
-      if (!downloadsUri) {
-        // Request folder permissions
-        const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (permissions.granted) {
-          downloadsUri = permissions.directoryUri;
-          await AsyncStorage.setItem('@backup_saf_uri', downloadsUri);
+      try {
+        const IntentLauncher = await import('expo-intent-launcher');
+        const contentUri = await FileSystem.getContentUriAsync(uri);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          type: 'application/vnd.android.package-archive',
+          flags: 1, // Intent.FLAG_GRANT_READ_URI_PERMISSION
+        });
+      } catch (intentError) {
+        console.log('IntentLauncher not available, falling back to Sharing:', intentError);
+        const Sharing = await import('expo-sharing');
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/vnd.android.package-archive',
+            dialogTitle: 'Instalar actualización',
+          });
+        } else {
+          throw new Error('El sistema de compartir no está disponible.');
         }
-      }
-
-      if (downloadsUri) {
-        const safeUri = await StorageAccessFramework.createFileAsync(
-          downloadsUri,
-          `BalancePro-${version}.apk`,
-          'application/vnd.android.package-archive'
-        );
-        await StorageAccessFramework.writeAsStringAsync(safeUri, base64, { encoding: 'base64' });
-        await Linking.openURL(safeUri);
-      } else {
-        throw new Error('Permisos SAF denegados');
       }
     } else {
       await Linking.openURL(apkUrl);
     }
   } catch (error: any) {
-    Alert.alert('Error de instalacion', error?.message || 'No se pudo completar la instalacion.');
+    Alert.alert('Error de instalación', error?.message || 'No se pudo completar la instalación.');
   }
 }
 

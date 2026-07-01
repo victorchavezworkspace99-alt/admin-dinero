@@ -1,5 +1,5 @@
 {
-  "latestVersion": "1.0.2",
-  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.0.2/BalancePro-v1.0.2.apk",
-  "changelog": "• Dark splash screen (modo oscuro)\n• Overlay de descarga con % de progreso (OTA + APK)\n• ReportsScreen navbar compacto\n• Export DB con SAF requestDirectoryPermissions\n• Eliminar cuentas/categorias sin transacciones\n• Fix download APK con expo-file-system/legacy\n• Correcciones de estabilidad y rendimiento"
+  "latestVersion": "1.0.3",
+  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.0.3/BalancePro-v1.0.3.apk",
+  "changelog": "• Corrección de porcentaje de descarga negativo y enorme\n• Reparación de instalación de APK (Package installer) mediante intent-launcher nativo y fallback de compartir\n• Remoción de la copia SAF base64 lenta y pesada para mayor estabilidad"
 }

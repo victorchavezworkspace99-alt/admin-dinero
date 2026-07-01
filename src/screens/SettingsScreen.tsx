@@ -18,6 +18,8 @@ export function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
+  const [bytesWritten, setBytesWritten] = useState(0);
+  const [totalBytes, setTotalBytes] = useState(0);
   const [isDownloadingNative, setIsDownloadingNative] = useState(false);
   const [updateType, setUpdateType] = useState<'ota' | 'native' | null>(null);
 
@@ -168,9 +170,13 @@ export function SettingsScreen() {
             setUpdateType('native');
             setIsDownloadingNative(true);
             setUpdateProgress(0);
+            setBytesWritten(0);
+            setTotalBytes(0);
             const { downloadAndInstallAPK } = await import('../utils/checkNativeUpdate');
-            await downloadAndInstallAPK(nativeUpdate.apkUrl, nativeUpdate.latestVersion, (p: number) => {
+            await downloadAndInstallAPK(nativeUpdate.apkUrl, nativeUpdate.latestVersion, (p: number, w: number, t: number) => {
               setUpdateProgress(p);
+              setBytesWritten(w);
+              setTotalBytes(t);
             });
             setIsDownloadingNative(false);
           }},
@@ -427,10 +433,16 @@ export function SettingsScreen() {
                   : 'Descargando ultima version de parches de codigo en segundo plano...'}
               </Text>
               <View style={{ width: '100%', height: 10, backgroundColor: c.border, borderRadius: 5, overflow: 'hidden', marginBottom: 12 }}>
-                <View style={{ height: '100%', backgroundColor: c.primary, width: `${updateType === 'native' ? updateProgress : Math.round((otaUpdates.downloadProgress || 0) * 100)}%` }} />
+                <View style={{ height: '100%', backgroundColor: c.primary, width: `${updateType === 'native' ? (updateProgress === -1 ? 100 : updateProgress) : Math.round((otaUpdates.downloadProgress || 0) * 100)}%` }} />
               </View>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: c.primary }}>
-                {updateType === 'native' ? updateProgress : Math.round((otaUpdates.downloadProgress || 0) * 100)}%
+              <Text style={{ fontSize: 14, fontWeight: '800', color: c.primary, textAlign: 'center' }}>
+                {updateType === 'native' ? (
+                  updateProgress === -1
+                    ? `Descargando... ${(bytesWritten / 1024 / 1024).toFixed(2)} MB`
+                    : `${updateProgress}% (${(bytesWritten / 1024 / 1024).toFixed(2)} MB / ${(totalBytes / 1024 / 1024).toFixed(2)} MB)`
+                ) : (
+                  `${Math.round((otaUpdates.downloadProgress || 0) * 100)}%`
+                )}
               </Text>
             </View>
           </View>

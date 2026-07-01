@@ -1,6 +1,6 @@
 {
   "name": "balance-pro",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -19,6 +19,7 @@
     "expo": "~56.0.12",
     "expo-document-picker": "~56.0.4",
     "expo-file-system": "~56.0.8",
+    "expo-intent-launcher": "~56.0.4",
     "expo-sharing": "~56.0.18",
     "expo-sqlite": "~56.0.5",
     "expo-status-bar": "~56.0.4",
