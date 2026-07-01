@@ -8,6 +8,7 @@ export function MoreScreen({ navigation }: any) {
   const items = [
     { icon: 'wallet-outline', label: 'Cuentas', screen: 'Accounts', color: '#10B981' },
     { icon: 'grid-outline', label: 'Categorias', screen: 'Categories', color: '#8B5CF6' },
+    { icon: 'repeat-outline', label: 'Transacciones Programadas', screen: 'RecurringTransactions', color: '#F59E0B' },
     { icon: 'settings-outline', label: 'Configuracion', screen: 'SettingsMain', color: c.textSecondary },
   ];
 

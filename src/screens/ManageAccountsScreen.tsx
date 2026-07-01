@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { CategoryColors } from '../theme/colors';
+import { CURRENCIES, formatCurrency as fsFormatCurrency } from '../store/SettingsStore';
 import { getAccounts, addAccount, updateAccount, deleteAccount, getAccountBalance } from '../database/database';
 import { Account, AccountType } from '../types';
 
@@ -28,6 +29,7 @@ export function ManageAccountsScreen({ navigation }: any) {
   const [accountNumber, setAccountNumber] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(ACCOUNT_ICONS[0]);
   const [selectedColor, setSelectedColor] = useState(CategoryColors[0]);
+  const [currencyCode, setCurrencyCode] = useState('PEN');
 
   const load = useCallback(async () => {
     const accs = await getAccounts();
@@ -49,6 +51,7 @@ export function ManageAccountsScreen({ navigation }: any) {
     setAccountNumber('');
     setSelectedIcon(ACCOUNT_ICONS[0]);
     setSelectedColor(CategoryColors[0]);
+    setCurrencyCode('PEN');
     setModalVisible(true);
   };
 
@@ -60,6 +63,7 @@ export function ManageAccountsScreen({ navigation }: any) {
     setAccountNumber(item.account_number || '');
     setSelectedIcon(item.icon || ACCOUNT_ICONS[0]);
     setSelectedColor(item.color || CategoryColors[0]);
+    setCurrencyCode(item.currency_code || 'PEN');
     setModalVisible(true);
   };
 
@@ -67,9 +71,9 @@ export function ManageAccountsScreen({ navigation }: any) {
     if (!name.trim()) { Alert.alert('Requerido', 'Ingresa un nombre'); return; }
     try {
       if (editItem) {
-        await updateAccount(editItem.id, name.trim(), accType, bankName.trim(), accountNumber.trim(), selectedIcon, selectedColor);
+        await updateAccount(editItem.id, name.trim(), accType, bankName.trim(), accountNumber.trim(), selectedIcon, selectedColor, currencyCode);
       } else {
-        await addAccount(name.trim(), accType, bankName.trim(), accountNumber.trim(), selectedIcon, selectedColor);
+        await addAccount(name.trim(), accType, bankName.trim(), accountNumber.trim(), selectedIcon, selectedColor, currencyCode);
       }
       setModalVisible(false);
       load();
@@ -115,12 +119,12 @@ export function ManageAccountsScreen({ navigation }: any) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, letterSpacing: -0.2 }}>{item.name}</Text>
-              <Text style={{ fontSize: 12, color: c.textSecondary, marginTop: 2 }}>{typeLabel(item.type)}{item.bank_name ? ` - ${item.bank_name}` : ''}</Text>
+              <Text style={{ fontSize: 12, color: c.textSecondary, marginTop: 2 }}>{typeLabel(item.type)}{item.bank_name ? ` - ${item.bank_name}` : ''} ({item.currency_code})</Text>
               {item.account_number ? <Text style={{ fontSize: 11, color: c.textLight, marginTop: 1 }}>Nro: {item.account_number}</Text> : null}
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3 }, { color: (balances[item.id] ?? 0) >= 0 ? c.text : c.expense }]}>
-                {formatCurrency(balances[item.id] ?? 0)}
+                {fsFormatCurrency(balances[item.id] ?? 0, CURRENCIES.find(cur => cur.code === item.currency_code) || CURRENCIES.find(cur => cur.code === 'PEN')!)}
               </Text>
             </View>
           </TouchableOpacity>
@@ -148,6 +152,22 @@ export function ManageAccountsScreen({ navigation }: any) {
                   <Text style={{ fontSize: 13, fontWeight: '600', color: accType === t.key ? c.primary : c.textSecondary }}>{t.label}</Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            <Text style={{ fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 10, marginTop: 4 }}>Divisa</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+              {['PEN', 'USD', 'EUR'].map(code => {
+                const isSel = currencyCode === code;
+                return (
+                  <TouchableOpacity
+                    key={code}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: isSel ? c.primary : c.border, backgroundColor: isSel ? c.primary + '18' : c.background, alignItems: 'center' }}
+                    onPress={() => setCurrencyCode(code)}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: isSel ? c.primary : c.textSecondary }}>{code}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={{ fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 10, marginTop: 4 }}>Color</Text>

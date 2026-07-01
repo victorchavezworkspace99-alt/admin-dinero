@@ -100,3 +100,17 @@ export function formatCurrency(amount: number, currency?: Currency): string {
     maximumFractionDigits: 2,
   });
 }
+
+export const EXCHANGE_RATES: Record<string, number> = {
+  USD: 1.0,
+  PEN: 3.75,
+  EUR: 0.92,
+};
+
+export function convertCurrency(amount: number, fromCode: string, toCode: string): number {
+  const fromRate = EXCHANGE_RATES[fromCode] || 1.0;
+  const toRate = EXCHANGE_RATES[toCode] || 1.0;
+  // Convert from fromCode to USD, then from USD to toCode
+  const inUSD = amount / fromRate;
+  return inUSD * toRate;
+}

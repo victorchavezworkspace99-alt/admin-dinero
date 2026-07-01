@@ -3,10 +3,11 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, A
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import { getBalance, getMonthlySummary, getTransactions, getBalancesByAccount, getSummaryForDateRange } from '../database/database';
+import { getMonthlySummary, getTransactions, getBalancesByAccount, getSummaryForDateRange, processRecurringTransactions } from '../database/database';
 import { TransactionItem } from '../components/TransactionItem';
 import { EmptyState } from '../components/EmptyState';
 import { DateRangeFilter } from '../components/DateRangeFilter';
+import { getCachedSettings, convertCurrency, CURRENCIES, formatCurrency as fsFormatCurrency } from '../store/SettingsStore';
 import { Transaction, MonthlySummary } from '../types';
 
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -41,22 +42,36 @@ export function HomeScreen({ navigation }: any) {
   const [showFilter, setShowFilter] = useState(false);
 
   const loadData = useCallback(() => {
-    if (dateRange) {
-      const s = formatDateStr(dateRange.start);
-      const e = formatDateStr(dateRange.end);
-      return Promise.all([
-        getSummaryForDateRange(s, e).then(r => setSummary({ month, year, ...r })),
-        getBalance().then(setBalance),
-        getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, s, e).then((tx) => setRecentTx(tx.slice(0, 5))),
-        getBalancesByAccount().then(setAccountBalances),
-      ]);
-    }
-    return Promise.all([
-      getMonthlySummary(month, year).then(setSummary),
-      getBalance().then(setBalance),
-      getTransactions(undefined, undefined, month, year).then((tx) => setRecentTx(tx.slice(0, 5))),
-      getBalancesByAccount().then(setAccountBalances),
-    ]);
+    const defaultCurrency = getCachedSettings().currency.code;
+    const processAccounts = (accs: any[]) => {
+      setAccountBalances(accs);
+      let total = 0;
+      for (const a of accs) {
+        total += convertCurrency(a.balance, a.currency_code, defaultCurrency);
+      }
+      setBalance(total);
+    };
+
+    const run = async () => {
+      await processRecurringTransactions();
+      if (dateRange) {
+        const s = formatDateStr(dateRange.start);
+        const e = formatDateStr(dateRange.end);
+        const r = await getSummaryForDateRange(s, e);
+        setSummary({ month, year, ...r });
+        const tx = await getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, s, e);
+        setRecentTx(tx.slice(0, 5));
+      } else {
+        const r = await getMonthlySummary(month, year);
+        setSummary(r);
+        const tx = await getTransactions(undefined, undefined, month, year);
+        setRecentTx(tx.slice(0, 5));
+      }
+      const accs = await getBalancesByAccount();
+      processAccounts(accs);
+    };
+
+    return run();
   }, [month, year, dateRange]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
@@ -211,7 +226,9 @@ export function HomeScreen({ navigation }: any) {
               <View key={acc.id} style={[s.accountCard, { backgroundColor: acc.color + '12', borderColor: acc.color + '30' }]}>
                 <Ionicons name={acc.icon as any} size={20} color={acc.color} />
                 <Text style={[s.accountCardName, { color: c.text }]}>{acc.name}</Text>
-                <Text style={[s.accountCardBal, { color: acc.balance >= 0 ? c.text : c.expense }]}>{fm(acc.balance)}</Text>
+                <Text style={[s.accountCardBal, { color: acc.balance >= 0 ? c.text : c.expense }]}>
+                  {fsFormatCurrency(acc.balance, CURRENCIES.find(cur => cur.code === acc.currency_code) || CURRENCIES.find(cur => cur.code === 'PEN')!)}
+                </Text>
               </View>
             ))}
           </ScrollView>

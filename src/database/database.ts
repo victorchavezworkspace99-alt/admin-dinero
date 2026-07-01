@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { DefaultCategories } from '../theme/colors';
-import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account, TransactionType } from '../types';
+import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account, TransactionType, RecurringTransaction } from '../types';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -275,12 +275,13 @@ export async function addAccount(
   bank_name: string,
   account_number: string,
   icon: string,
-  color: string
+  color: string,
+  currency_code = 'PEN'
 ): Promise<number> {
   const database = await openDatabase();
   const result = await database.runAsync(
-    'INSERT INTO accounts (name, type, bank_name, account_number, icon, color, is_default) VALUES (?, ?, ?, ?, ?, ?, 0)',
-    [name, type, bank_name, account_number, icon, color]
+    'INSERT INTO accounts (name, type, bank_name, account_number, icon, color, is_default, currency_code) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
+    [name, type, bank_name, account_number, icon, color, currency_code]
   );
   return result.lastInsertRowId;
 }
@@ -292,12 +293,13 @@ export async function updateAccount(
   bank_name: string,
   account_number: string,
   icon: string,
-  color: string
+  color: string,
+  currency_code = 'PEN'
 ): Promise<void> {
   const database = await openDatabase();
   await database.runAsync(
-    'UPDATE accounts SET name = ?, type = ?, bank_name = ?, account_number = ?, icon = ?, color = ? WHERE id = ?',
-    [name, type, bank_name, account_number, icon, color, id]
+    'UPDATE accounts SET name = ?, type = ?, bank_name = ?, account_number = ?, icon = ?, color = ?, currency_code = ? WHERE id = ?',
+    [name, type, bank_name, account_number, icon, color, currency_code, id]
   );
 }
 
@@ -648,4 +650,108 @@ export async function checkAndAutoCopyRecurringBudgets(): Promise<void> {
   } catch (error) {
     console.error('Error auto-copying recurring budgets:', error);
   }
+}
+
+export async function processRecurringTransactions(): Promise<void> {
+  const database = await openDatabase();
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  const activeRecs = await database.getAllAsync<any>(
+    'SELECT * FROM recurring_transactions WHERE is_active = 1 AND next_date <= ?',
+    [todayStr]
+  );
+
+  for (const rec of activeRecs) {
+    let nextDate = new Date(rec.next_date + 'T00:00:00');
+    
+    while (true) {
+      const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+      if (nextDateStr > todayStr) break;
+
+      await database.runAsync(
+        'INSERT INTO transactions (amount, type, category_id, description, date, account_id, destination_account_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          rec.amount,
+          rec.type,
+          rec.category_id,
+          rec.description,
+          nextDateStr,
+          rec.source_account_id,
+          rec.destination_account_id
+        ]
+      );
+
+      if (rec.frequency === 'daily') {
+        nextDate.setDate(nextDate.getDate() + 1);
+      } else if (rec.frequency === 'weekly') {
+        nextDate.setDate(nextDate.getDate() + 7);
+      } else if (rec.frequency === 'monthly') {
+        nextDate.setMonth(nextDate.getMonth() + 1);
+      } else if (rec.frequency === 'yearly') {
+        nextDate.setFullYear(nextDate.getFullYear() + 1);
+      }
+    }
+
+    const updatedNextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+    await database.runAsync(
+      'UPDATE recurring_transactions SET next_date = ? WHERE id = ?',
+      [updatedNextDateStr, rec.id]
+    );
+  }
+}
+
+export async function getRecurringTransactions(): Promise<RecurringTransaction[]> {
+  const database = await openDatabase();
+  return database.getAllAsync<RecurringTransaction>(
+    `SELECT rt.*, c.name as category_name, a.name as source_account_name, da.name as destination_account_name
+     FROM recurring_transactions rt
+     LEFT JOIN categories c ON rt.category_id = c.id
+     JOIN accounts a ON rt.source_account_id = a.id
+     LEFT JOIN accounts da ON rt.destination_account_id = da.id
+     ORDER BY rt.id DESC`
+  );
+}
+
+export async function addRecurringTransaction(
+  amount: number,
+  type: TransactionType,
+  category_id: number | null,
+  source_account_id: number,
+  destination_account_id: number | null,
+  description: string,
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  start_date: string
+): Promise<number> {
+  const database = await openDatabase();
+  const result = await database.runAsync(
+    'INSERT INTO recurring_transactions (amount, type, category_id, source_account_id, destination_account_id, description, frequency, start_date, next_date, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
+    [amount, type, category_id, source_account_id, destination_account_id, description, frequency, start_date, start_date]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateRecurringTransaction(
+  id: number,
+  amount: number,
+  type: TransactionType,
+  category_id: number | null,
+  source_account_id: number,
+  destination_account_id: number | null,
+  description: string,
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  start_date: string,
+  next_date: string,
+  is_active: number
+): Promise<void> {
+  const database = await openDatabase();
+  await database.runAsync(
+    'UPDATE recurring_transactions SET amount = ?, type = ?, category_id = ?, source_account_id = ?, destination_account_id = ?, description = ?, frequency = ?, start_date = ?, next_date = ?, is_active = ? WHERE id = ?',
+    [amount, type, category_id, source_account_id, destination_account_id, description, frequency, start_date, next_date, is_active, id]
+  );
+}
+
+export async function deleteRecurringTransaction(id: number): Promise<void> {
+  const database = await openDatabase();
+  await database.runAsync('DELETE FROM recurring_transactions WHERE id = ?', [id]);
 }
