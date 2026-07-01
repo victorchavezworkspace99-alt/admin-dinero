@@ -4,8 +4,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart, BarChart, LineChart } from 'react-native-chart-kit';
 import { useTheme } from '../theme/ThemeContext';
-import { getMonthlySummary, getCategorySummary, getCategorySummaryForDateRange, getMonthlyTrends, getBudgets } from '../database/database';
+import { getMonthlySummary, getCategorySummary, getCategorySummaryForDateRange, getMonthlyTrends, getBudgets, getTransactions, getSummaryForDateRange } from '../database/database';
 import { MonthlySummary, CategorySummary, Budget } from '../types';
+import { DateRangeFilter } from '../components/DateRangeFilter';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -37,14 +38,49 @@ export function ReportsScreen() {
   const [showIncome, setShowIncome] = useState(false);
   const [trends, setTrends] = useState<{ month: number; year: number; income: number; expense: number }[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [dayStats, setDayStats] = useState<{ bestDayLabel: string; bestAmount: number; worstDayLabel: string; worstAmount: number; txCount: number }>({ bestDayLabel: '', bestAmount: 0, worstDayLabel: '', worstAmount: 0, txCount: 0 });
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [showFilter, setShowFilter] = useState(false);
+
+  function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
+  function fmtDate(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 
   useFocusEffect(useCallback(() => {
-    getMonthlySummary(month, year).then(setSummary);
-    getCategorySummary(month, year, 'expense').then(setExpenseSummary);
-    getCategorySummary(month, year, 'income').then(setIncomeSummary);
+    if (dateRange) {
+      const s = fmtDate(dateRange.start);
+      const e = fmtDate(dateRange.end);
+      getSummaryForDateRange(s, e).then(r => setSummary({ month, year, ...r }));
+      getCategorySummaryForDateRange(s, e, 'expense').then(setExpenseSummary);
+      getCategorySummaryForDateRange(s, e, 'income').then(setIncomeSummary);
+    } else {
+      getMonthlySummary(month, year).then(setSummary);
+      getCategorySummary(month, year, 'expense').then(setExpenseSummary);
+      getCategorySummary(month, year, 'income').then(setIncomeSummary);
+    }
     getMonthlyTrends(6).then(setTrends);
     getBudgets(month, year).then(setBudgets);
-  }, [month, year]));
+    const txPromise = dateRange
+      ? getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, fmtDate(dateRange.start), fmtDate(dateRange.end))
+      : getTransactions(undefined, undefined, month, year);
+    txPromise.then((txs) => {
+      if (txs.length === 0) { setDayStats({ bestDayLabel: '', bestAmount: 0, worstDayLabel: '', worstAmount: 0, txCount: 0 }); return; }
+      const byDay: Record<string, { income: number; expense: number }> = {};
+      for (const tx of txs) {
+        const d = new Date(tx.date);
+        const label = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+        if (!byDay[label]) byDay[label] = { income: 0, expense: 0 };
+        if (tx.type === 'income') byDay[label].income += tx.amount;
+        else byDay[label].expense += tx.amount;
+      }
+      let bestLabel = '', bestAmount = 0, worstLabel = '', worstAmount = 0;
+      for (const [l, v] of Object.entries(byDay)) {
+        const net = v.income - v.expense;
+        if (net > bestAmount) { bestLabel = l; bestAmount = net; }
+        if (net < worstAmount) { worstLabel = l; worstAmount = net; }
+      }
+      setDayStats({ bestDayLabel: bestLabel, bestAmount, worstDayLabel: worstLabel, worstAmount, txCount: txs.length });
+    });
+  }, [month, year, dateRange]));
 
   const changeMonth = (delta: number) => {
     let m = month + delta, y = year;
@@ -137,21 +173,23 @@ export function ReportsScreen() {
               <Ionicons name="arrow-down" size={22} color={c.income} />
             </View>
             <Text style={[ss.statLabel, { color: c.textSecondary }]}>Mejor dia</Text>
-            <Text style={[ss.statVal, { color: c.text }]}>--</Text>
+            <Text style={[ss.statVal, { color: c.income }]}>{dayStats.bestAmount > 0 ? formatCurrency(dayStats.bestAmount) : '--'}</Text>
+            {dayStats.bestDayLabel ? <Text style={{ fontSize: 10, color: c.textLight, marginTop: 1 }}>{dayStats.bestDayLabel}</Text> : null}
           </View>
           <View style={[ss.statCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
             <View style={[ss.statIcon, { backgroundColor: c.expenseLight }]}>
               <Ionicons name="arrow-up" size={22} color={c.expense} />
             </View>
             <Text style={[ss.statLabel, { color: c.textSecondary }]}>Peor dia</Text>
-            <Text style={[ss.statVal, { color: c.text }]}>--</Text>
+            <Text style={[ss.statVal, { color: c.expense }]}>{dayStats.worstAmount < 0 ? formatCurrency(Math.abs(dayStats.worstAmount)) : '--'}</Text>
+            {dayStats.worstDayLabel ? <Text style={{ fontSize: 10, color: c.textLight, marginTop: 1 }}>{dayStats.worstDayLabel}</Text> : null}
           </View>
           <View style={[ss.statCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
             <View style={[ss.statIcon, { backgroundColor: c.primaryLight }]}>
               <Ionicons name="calendar" size={22} color={c.primary} />
             </View>
             <Text style={[ss.statLabel, { color: c.textSecondary }]}>Trans.</Text>
-            <Text style={[ss.statVal, { color: c.text }]}>--</Text>
+            <Text style={[ss.statVal, { color: c.text }]}>{dayStats.txCount}</Text>
           </View>
         </View>
       </SpringScale>
@@ -427,7 +465,15 @@ export function ReportsScreen() {
                           <Ionicons name={(b.category_icon || 'ellipsis-horizontal') as any} size={18} color={b.category_color || c.primary} />
                         </View>
                         <View>
-                          <Text style={[ss.budgetItemName, { color: c.text }]}>{b.category_name}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[ss.budgetItemName, { color: c.text }]}>{b.category_name}</Text>
+                            {b.is_recurring === 1 && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 2 }}>
+                                <Ionicons name="repeat" size={10} color={c.primary} />
+                                <Text style={{ fontSize: 10, fontWeight: '600', color: c.primary }}>Fijo</Text>
+                              </View>
+                            )}
+                          </View>
                           <Text style={[ss.budgetItemMeta, { color: c.textSecondary }]}>
                             {formatCurrency(b.spent)} / {formatCurrency(b.amount)}
                           </Text>
@@ -529,10 +575,20 @@ export function ReportsScreen() {
   return (
     <View style={[ss.container, { backgroundColor: c.background }]}>
       <View style={[ss.header, { backgroundColor: c.primary }]}>
-        <Text style={ss.title}>Reportes</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={ss.title}>Reportes</Text>
+          <TouchableOpacity onPress={() => setShowFilter(true)} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={0.7}>
+            <Ionicons name={dateRange ? "funnel" : "calendar-outline"} size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+        {dateRange && (
+          <Text style={{ fontSize: 12, color: '#ffffffcc', marginTop: 4, fontWeight: '500' }}>
+            {`${dateRange.start.getDate()} ${MONTHS[dateRange.start.getMonth()]} - ${dateRange.end.getDate()} ${MONTHS[dateRange.end.getMonth()]} ${dateRange.end.getFullYear()}`}
+          </Text>
+        )}
       </View>
 
-      <View style={[ss.tabBar, { backgroundColor: c.surface, borderBottomColor: c.border }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[ss.tabBar, { backgroundColor: c.surface, borderBottomColor: c.border }]}>
         {tabs.map(t => (
           <TouchableOpacity
             key={t.key}
@@ -544,7 +600,7 @@ export function ReportsScreen() {
             <Text style={[ss.tabLabel, { color: tab === t.key ? c.primary : c.textLight }]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {tab === 'resumen' && renderResumen()}
@@ -554,6 +610,15 @@ export function ReportsScreen() {
         {tab === 'personalizado' && renderPersonalizado()}
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <DateRangeFilter
+        visible={showFilter}
+        startDate={dateRange?.start ?? null}
+        endDate={dateRange?.end ?? null}
+        onApply={(s, e) => setDateRange({ start: s, end: e })}
+        onClear={() => setDateRange(null)}
+        onClose={() => setShowFilter(false)}
+      />
     </View>
   );
 }

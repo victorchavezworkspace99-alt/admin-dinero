@@ -1,41 +1,58 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../theme/colors';
-import { getBudgets, setBudget, updateBudget, deleteBudget, getCategories, copyRecurringBudgets } from '../database/database';
+import { useTheme } from '../theme/ThemeContext';
+import { getBudgets, setBudget, updateBudget, deleteBudget, getCategories, getTransactions } from '../database/database';
 import { Budget, Category } from '../types';
-import { formatCurrency as fc } from '../store/SettingsStore';
+import { DateRangeFilter } from '../components/DateRangeFilter';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 export function BudgetsScreen() {
+  const { colors: c, formatCurrency } = useTheme();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [showFilter, setShowFilter] = useState(false);
+
+  function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
+  function fmtDate(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [budgetAmount, setBudgetAmount] = useState('');
   const [isRecurring, setIsRecurring] = useState(0);
 
   useFocusEffect(useCallback(() => {
-    getBudgets(month, year).then(setBudgets);
+    getBudgets(month, year).then((budgets) => {
+      if (dateRange) {
+        getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, fmtDate(dateRange.start), fmtDate(dateRange.end)).then((txs) => {
+          const spentByCat: Record<number, number> = {};
+          for (const tx of txs) {
+            if (tx.type === 'expense') {
+              spentByCat[tx.category_id] = (spentByCat[tx.category_id] || 0) + tx.amount;
+            }
+          }
+          setBudgets(budgets.map(b => ({ ...b, spent: spentByCat[b.category_id] || 0 })));
+        });
+      } else {
+        setBudgets(budgets);
+      }
+    });
     getCategories('expense').then(setCategories);
-  }, [month, year]));
+  }, [month, year, dateRange]));
 
-  const changeMonth = async (delta: number) => {
+  const changeMonth = (delta: number) => {
     let m = month + delta;
     let y = year;
     if (m < 1) { m = 12; y--; }
     if (m > 12) { m = 1; y++; }
     setMonth(m);
     setYear(y);
-    if (delta > 0) {
-      await copyRecurringBudgets(month, year, m, y);
-    }
     getBudgets(m, y).then(setBudgets);
   };
 
@@ -49,7 +66,7 @@ export function BudgetsScreen() {
 
   const openEdit = (budget: Budget) => {
     setEditingBudget(budget);
-    const cat = categories.find(c => c.id === budget.category_id);
+    const cat = categories.find(cat => cat.id === budget.category_id);
     setSelectedCategory(cat || null);
     setBudgetAmount(budget.amount.toString());
     setIsRecurring(budget.is_recurring || 0);
@@ -87,46 +104,102 @@ export function BudgetsScreen() {
     ]);
   };
 
-  const formatCurrency = (val: number) => fc(val);
-
   const totalBudget = budgets.reduce((s, b) => s + b.amount, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
   const [catSearch, setCatSearch] = useState('');
   const availableCats = useMemo(() => {
     const q = catSearch.toLowerCase();
-    return categories.filter(c => {
-      const alreadyHas = budgets.some(b => b.category_id === c.id && b.id !== (editingBudget?.id || -1));
-      return !alreadyHas && c.name.toLowerCase().includes(q);
+    return categories.filter(cat => {
+      const alreadyHas = budgets.some(b => b.category_id === cat.id && b.id !== (editingBudget?.id || -1));
+      return !alreadyHas && cat.name.toLowerCase().includes(q);
     });
   }, [categories, budgets, catSearch, editingBudget]);
 
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Presupuestos</Text>
-        <TouchableOpacity onPress={openAdd}>
-          <Ionicons name="add-circle" size={28} color={Colors.surface} />
-        </TouchableOpacity>
-      </View>
+  const s = {
+    container: { flex: 1, backgroundColor: c.background },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.primary, paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 },
+    title: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+    monthNav: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 16, marginHorizontal: 20 },
+    monthBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.surface, justifyContent: 'center', alignItems: 'center', shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
+    monthText: { fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, width: 160, textAlign: 'center', letterSpacing: -0.3 },
+    totalCard: { backgroundColor: c.surface, marginHorizontal: 16, marginTop: 16, borderRadius: 20, padding: 20, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+    totalLabel: { fontSize: 14, color: c.textSecondary, textAlign: 'center', fontWeight: '500' },
+    totalAmount: { fontSize: 28, fontWeight: '800', color: c.text, textAlign: 'center', marginTop: 4, letterSpacing: -1 },
+    totalSpent: { fontSize: 13, color: c.textLight, textAlign: 'center', marginTop: 6, fontWeight: '500' },
+    budgetCard: { backgroundColor: c.surface, marginHorizontal: 16, marginTop: 10, borderRadius: 16, padding: 16, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+    budgetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    budgetIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+    budgetName: { fontSize: 15, fontWeight: '600', color: c.text, letterSpacing: -0.2 },
+    budgetMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    budgetPercent: { fontSize: 16, fontWeight: '800', color: c.primary, letterSpacing: -0.3 },
+    progressBar: { height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden', marginTop: 4 },
+    progressFill: { height: '100%', borderRadius: 3 },
+    emptyState: { alignItems: 'center', paddingVertical: 80 },
+    emptyRing: { width: 80, height: 80, borderRadius: 40, backgroundColor: c.background, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: c.border },
+    emptyTitle: { fontSize: 18, fontWeight: '600', color: c.textSecondary, marginTop: 16, letterSpacing: -0.3 },
+    emptySub: { fontSize: 14, color: c.textLight, marginTop: 6, textAlign: 'center', paddingHorizontal: 40, lineHeight: 20 },
+    modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(28,28,30,0.4)' },
+    modalContent: { backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 16, letterSpacing: -0.4 },
+    modalLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+    catSearchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.background, borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 6, marginBottom: 10 },
+    catSearchField: { flex: 1, fontSize: 14, color: c.text, paddingVertical: 0 },
+    catOption: { alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 2, borderColor: 'transparent', marginRight: 8 },
+    catOptionLabel: { fontSize: 12, color: c.text, marginTop: 4, fontWeight: '500' },
+    amountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.background, borderRadius: 14, paddingHorizontal: 16, marginBottom: 20 },
+    currencySign: { fontSize: 20, fontWeight: '600', color: c.textSecondary, marginRight: 4 },
+    amountField: { flex: 1, fontSize: 20, fontWeight: '700', color: c.text, paddingVertical: 14, letterSpacing: -0.5 },
+    modalActions: { flexDirection: 'row', gap: 10 },
+    cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center', backgroundColor: c.background },
+    cancelText: { fontSize: 16, fontWeight: '600', color: c.textSecondary },
+    saveBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center', backgroundColor: c.primary },
+    saveText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+    typeToggle: { flexDirection: 'row', backgroundColor: c.background, borderRadius: 14, padding: 4, marginBottom: 8, gap: 4 },
+    typeOption: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 11, gap: 4 },
+    typeOptionActive: { backgroundColor: c.primary },
+    typeOptionText: { fontSize: 14, fontWeight: '600', color: c.text },
+    typeOptionTextActive: { color: '#FFFFFF' },
+    recurringBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 2 },
+    recurringBadgeText: { fontSize: 10, fontWeight: '600', color: c.primary },
+  };
 
-      <View style={styles.monthNav}>
-        <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={20} color={Colors.text} />
+  return (
+    <ScrollView style={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>Presupuestos</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity onPress={() => setShowFilter(true)} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={0.7}>
+            <Ionicons name={dateRange ? "funnel" : "calendar-outline"} size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={openAdd}>
+            <Ionicons name="add-circle" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      {dateRange && (
+        <Text style={[{ textAlign: 'center', fontSize: 12, color: c.primary, fontWeight: '600', paddingVertical: 6, backgroundColor: c.primary + '0a' }]}>
+          Filtrando: {`${dateRange.start.getDate()}/${dateRange.start.getMonth() + 1}`} - {`${dateRange.end.getDate()}/${dateRange.end.getMonth() + 1}`}
+        </Text>
+      )}
+
+      <View style={s.monthNav}>
+        <TouchableOpacity onPress={() => changeMonth(-1)} style={s.monthBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={20} color={c.text} />
         </TouchableOpacity>
-        <Text style={styles.monthText}>{MONTHS[month - 1]} {year}</Text>
-        <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-forward" size={20} color={Colors.text} />
+        <Text style={[s.monthText, dateRange && { opacity: 0.5 }]}>{MONTHS[month - 1]} {year}</Text>
+        <TouchableOpacity onPress={() => changeMonth(1)} style={s.monthBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-forward" size={20} color={c.text} />
         </TouchableOpacity>
       </View>
 
       {budgets.length > 0 && (
-        <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Presupuesto Total</Text>
-          <Text style={styles.totalAmount}>{formatCurrency(totalBudget)}</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${Math.min((totalSpent / totalBudget) * 100, 100)}%`, backgroundColor: (totalSpent / totalBudget) > 0.8 ? Colors.warning : Colors.primary }]} />
+        <View style={s.totalCard}>
+          <Text style={s.totalLabel}>Presupuesto Total</Text>
+          <Text style={s.totalAmount}>{formatCurrency(totalBudget)}</Text>
+          <View style={s.progressBar}>
+            <View style={[s.progressFill, { width: `${Math.min((totalSpent / totalBudget) * 100, 100)}%`, backgroundColor: (totalSpent / totalBudget) > 0.8 ? c.warning : c.primary }]} />
           </View>
-          <Text style={styles.totalSpent}>Gastado: {formatCurrency(totalSpent)}</Text>
+          <Text style={s.totalSpent}>Gastado: {formatCurrency(totalSpent)}</Text>
         </View>
       )}
 
@@ -136,76 +209,68 @@ export function BudgetsScreen() {
         return (
           <TouchableOpacity
             key={budget.id}
-            style={styles.budgetCard}
+            style={s.budgetCard}
             onPress={() => openEdit(budget)}
             onLongPress={() => handleDelete(budget)}
             activeOpacity={0.7}
           >
-            <View style={styles.budgetHeader}>
-              <View style={[styles.budgetIcon, { backgroundColor: (budget.category_color || Colors.primary) + '18' }]}>
-                <Ionicons name={(budget.category_icon || 'ellipsis-horizontal') as any} size={20} color={budget.category_color || Colors.primary} />
+            <View style={s.budgetHeader}>
+              <View style={[s.budgetIcon, { backgroundColor: (budget.category_color || c.primary) + '18' }]}>
+                <Ionicons name={(budget.category_icon || 'ellipsis-horizontal') as any} size={20} color={budget.category_color || c.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.budgetName}>{budget.category_name}</Text>
+                  <Text style={s.budgetName}>{budget.category_name}</Text>
                   {budget.is_recurring === 1 && (
-                    <View style={styles.recurringBadge}>
-                      <Ionicons name="repeat" size={10} color={Colors.primary} />
-                      <Text style={styles.recurringBadgeText}>Fijo</Text>
+                    <View style={s.recurringBadge}>
+                      <Ionicons name="repeat" size={10} color={c.primary} />
+                      <Text style={s.recurringBadgeText}>Fijo</Text>
                     </View>
                   )}
                 </View>
-                <Text style={styles.budgetMeta}>
+                <Text style={s.budgetMeta}>
                   {formatCurrency(budget.spent)} de {formatCurrency(budget.amount)}
                 </Text>
               </View>
-              <Text style={[styles.budgetPercent, isOver && { color: Colors.expense }]}>
+              <Text style={[s.budgetPercent, isOver && { color: c.expense }]}>
                 {percent.toFixed(0)}%
               </Text>
             </View>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${Math.min(percent, 100)}%`,
-                    backgroundColor: isOver ? Colors.expense : Colors.primary,
-                  },
-                ]}
-              />
+            <View style={s.progressBar}>
+              <View style={[s.progressFill, { width: `${Math.min(percent, 100)}%`, backgroundColor: isOver ? c.expense : c.primary }]} />
             </View>
           </TouchableOpacity>
         );
       })}
 
       {budgets.length === 0 && (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyRing}>
-            <Ionicons name="wallet-outline" size={40} color={Colors.textLight} />
+        <View style={s.emptyState}>
+          <View style={s.emptyRing}>
+            <Ionicons name="wallet-outline" size={40} color={c.textLight} />
           </View>
-          <Text style={styles.emptyTitle}>Sin presupuestos</Text>
-          <Text style={styles.emptySub}>Agrega presupuestos para controlar tus gastos mensuales</Text>
+          <Text style={s.emptyTitle}>Sin presupuestos</Text>
+          <Text style={s.emptySub}>Agrega presupuestos para controlar tus gastos mensuales</Text>
         </View>
       )}
 
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{editingBudget ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}</Text>
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={s.modalTitle}>{editingBudget ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}</Text>
 
-            <Text style={styles.modalLabel}>Categoria</Text>
-            <View style={styles.catSearchWrap}>
-              <Ionicons name="search" size={16} color={Colors.textLight} />
+            <Text style={s.modalLabel}>Categoria</Text>
+            <View style={s.catSearchWrap}>
+              <Ionicons name="search" size={16} color={c.textLight} />
               <TextInput
-                style={styles.catSearchField}
+                style={s.catSearchField}
                 placeholder="Buscar categoria..."
-                placeholderTextColor={Colors.textLight}
+                placeholderTextColor={c.textLight}
                 value={catSearch}
                 onChangeText={setCatSearch}
               />
               {catSearch ? (
                 <TouchableOpacity onPress={() => setCatSearch('')}>
-                  <Ionicons name="close-circle" size={16} color={Colors.textLight} />
+                  <Ionicons name="close-circle" size={16} color={c.textLight} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -213,65 +278,62 @@ export function BudgetsScreen() {
               {availableCats.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[
-                    styles.catOption,
-                    selectedCategory?.id === cat.id && { backgroundColor: cat.color + '20', borderColor: cat.color },
-                  ]}
+                  style={[s.catOption, selectedCategory?.id === cat.id && { backgroundColor: cat.color + '20', borderColor: cat.color }]}
                   onPress={() => setSelectedCategory(cat)}
                 >
                   <Ionicons name={cat.icon as any} size={22} color={cat.color} />
-                  <Text style={styles.catOptionLabel}>{cat.name}</Text>
+                  <Text style={s.catOptionLabel}>{cat.name}</Text>
                 </TouchableOpacity>
               ))}
               {availableCats.length === 0 && (
-                <Text style={{ color: Colors.textLight, padding: 10, fontSize: 14 }}>Todas las categorias tienen presupuesto</Text>
+                <Text style={{ color: c.textLight, padding: 10, fontSize: 14 }}>Todas las categorias tienen presupuesto</Text>
               )}
             </ScrollView>
 
-            <Text style={styles.modalLabel}>Tipo</Text>
-            <View style={styles.typeToggle}>
+            <Text style={s.modalLabel}>Tipo</Text>
+            <View style={s.typeToggle}>
               <TouchableOpacity
-                style={[styles.typeOption, isRecurring === 0 && styles.typeOptionActive]}
+                style={[s.typeOption, isRecurring === 0 && s.typeOptionActive]}
                 onPress={() => setIsRecurring(0)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="flash-outline" size={16} color={isRecurring === 0 ? Colors.surface : Colors.text} />
-                <Text style={[styles.typeOptionText, isRecurring === 0 && styles.typeOptionTextActive]}>Variable</Text>
+                <Ionicons name="flash-outline" size={16} color={isRecurring === 0 ? '#FFFFFF' : c.text} />
+                <Text style={[s.typeOptionText, isRecurring === 0 && s.typeOptionTextActive]}>Variable</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.typeOption, isRecurring === 1 && styles.typeOptionActive]}
+                style={[s.typeOption, isRecurring === 1 && s.typeOptionActive]}
                 onPress={() => setIsRecurring(1)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="repeat" size={16} color={isRecurring === 1 ? Colors.surface : Colors.text} />
-                <Text style={[styles.typeOptionText, isRecurring === 1 && styles.typeOptionTextActive]}>Fijo</Text>
+                <Ionicons name="repeat" size={16} color={isRecurring === 1 ? '#FFFFFF' : c.text} />
+                <Text style={[s.typeOptionText, isRecurring === 1 && s.typeOptionTextActive]}>Fijo</Text>
               </TouchableOpacity>
             </View>
             {isRecurring === 1 && (
-              <Text style={{ color: Colors.textSecondary, fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
+              <Text style={{ color: c.textSecondary, fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
                 Los presupuestos fijos se crean automaticamente cada mes nuevo
               </Text>
             )}
 
-            <Text style={styles.modalLabel}>Monto Limite</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.currencySign}>$</Text>
+            <Text style={s.modalLabel}>Monto Limite</Text>
+            <View style={s.amountRow}>
+              <Text style={s.currencySign}>$</Text>
               <TextInput
-                style={styles.amountField}
+                style={s.amountField}
                 placeholder="0.00"
-                placeholderTextColor={Colors.textLight}
+                placeholderTextColor={c.textLight}
                 keyboardType="decimal-pad"
                 value={budgetAmount}
                 onChangeText={setBudgetAmount}
               />
             </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancelBtn} activeOpacity={0.7}>
-                <Text style={styles.cancelText}>Cancelar</Text>
+            <View style={s.modalActions}>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={s.cancelBtn} activeOpacity={0.7}>
+                <Text style={s.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleSave} style={styles.saveBtn} activeOpacity={0.85}>
-                <Text style={styles.saveText}>Guardar</Text>
+              <TouchableOpacity onPress={handleSave} style={s.saveBtn} activeOpacity={0.85}>
+                <Text style={s.saveText}>Guardar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -279,102 +341,15 @@ export function BudgetsScreen() {
       </Modal>
 
       <View style={{ height: 100 }} />
+
+      <DateRangeFilter
+        visible={showFilter}
+        startDate={dateRange?.start ?? null}
+        endDate={dateRange?.end ?? null}
+        onApply={(s, e) => setDateRange({ start: s, end: e })}
+        onClear={() => setDateRange(null)}
+        onClose={() => setShowFilter(false)}
+      />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingTop: 52,
-    paddingBottom: 16,
-  },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.surface, letterSpacing: -0.5 },
-  monthNav: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
-    marginHorizontal: 20,
-  },
-  monthBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  monthText: { fontSize: 16, fontWeight: '700', color: Colors.text, marginHorizontal: 20, width: 160, textAlign: 'center', letterSpacing: -0.3 },
-  totalCard: { backgroundColor: Colors.surface, marginHorizontal: 16, marginTop: 16, borderRadius: 20, padding: 20, shadowColor: Colors.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
-  totalLabel: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', fontWeight: '500' },
-  totalAmount: { fontSize: 28, fontWeight: '800', color: Colors.text, textAlign: 'center', marginTop: 4, letterSpacing: -1 },
-  totalSpent: { fontSize: 13, color: Colors.textLight, textAlign: 'center', marginTop: 6, fontWeight: '500' },
-  budgetCard: {
-    backgroundColor: Colors.surface,
-    marginHorizontal: 16,
-    marginTop: 10,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  budgetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  budgetIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  budgetName: { fontSize: 15, fontWeight: '600', color: Colors.text, letterSpacing: -0.2 },
-  budgetMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  budgetPercent: { fontSize: 16, fontWeight: '800', color: Colors.primary, letterSpacing: -0.3 },
-  progressBar: { height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden', marginTop: 4 },
-  progressFill: { height: '100%', borderRadius: 3 },
-  emptyState: { alignItems: 'center', paddingVertical: 80 },
-  emptyRing: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: Colors.border },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: Colors.textSecondary, marginTop: 16, letterSpacing: -0.3 },
-  emptySub: { fontSize: 14, color: Colors.textLight, marginTop: 6, textAlign: 'center', paddingHorizontal: 40, lineHeight: 20 },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(28,28,30,0.4)' },
-  modalContent: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 16, letterSpacing: -0.4 },
-  modalLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8 },
-  catSearchWrap: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background,
-    borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 6, marginBottom: 10,
-  },
-  catSearchField: { flex: 1, fontSize: 14, color: Colors.text, paddingVertical: 0 },
-  catOption: {
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    marginRight: 8,
-  },
-  catOptionLabel: { fontSize: 12, color: Colors.text, marginTop: 4, fontWeight: '500' },
-  amountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 14, paddingHorizontal: 16, marginBottom: 20 },
-  currencySign: { fontSize: 20, fontWeight: '600', color: Colors.textSecondary, marginRight: 4 },
-  amountField: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, paddingVertical: 14, letterSpacing: -0.5 },
-  modalActions: { flexDirection: 'row', gap: 10 },
-  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center', backgroundColor: Colors.background },
-  cancelText: { fontSize: 16, fontWeight: '600', color: Colors.textSecondary },
-  saveBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: 'center', backgroundColor: Colors.primary },
-  saveText: { fontSize: 16, fontWeight: '600', color: Colors.surface },
-  typeToggle: { flexDirection: 'row', backgroundColor: Colors.background, borderRadius: 14, padding: 4, marginBottom: 8, gap: 4 },
-  typeOption: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 11, gap: 4 },
-  typeOptionActive: { backgroundColor: Colors.primary },
-  typeOptionText: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  typeOptionTextActive: { color: Colors.surface },
-  recurringBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 2 },
-  recurringBadgeText: { fontSize: 10, fontWeight: '600', color: Colors.primary },
-});

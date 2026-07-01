@@ -1,15 +1,16 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../theme/colors';
-import { getCategories, getAccounts, addTransaction, updateTransaction, getTransactions } from '../database/database';
+import { useTheme } from '../theme/ThemeContext';
+import { getCategories, getAccounts, addTransaction, updateTransaction } from '../database/database';
 import { CategorySelector } from '../components/CategorySelector';
 import { DatePickerModal } from '../components/DatePickerModal';
 import { Category, Account, Transaction } from '../types';
 
 export function AddTransactionScreen({ navigation }: any) {
+  const { colors: c } = useTheme();
   const insets = useSafeAreaInsets();
   const route = useRoute();
   const editTx = (route.params as any)?.transaction as Transaction | undefined;
@@ -35,7 +36,7 @@ export function AddTransactionScreen({ navigation }: any) {
     getCategories().then((cats) => {
       setCategories(cats);
       if (editTx) {
-        const cat = cats.find(c => c.id === editTx.category_id);
+        const cat = cats.find(cat => cat.id === editTx.category_id);
         if (cat) setSelectedCategory(cat);
       }
     });
@@ -46,7 +47,7 @@ export function AddTransactionScreen({ navigation }: any) {
         if (acc) setSelectedAccount(acc);
       }
     });
-  }, []));
+  }, [editTx]));
 
   const formatDate = (d: Date) => {
     const year = d.getFullYear();
@@ -81,42 +82,42 @@ export function AddTransactionScreen({ navigation }: any) {
   };
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={[styles.header, { paddingTop: 16 + insets.top }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-          <Ionicons name="close" size={26} color={Colors.surface} />
+    <ScrollView style={{ flex: 1, backgroundColor: c.background }} keyboardShouldPersistTaps="handled">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.primary, paddingHorizontal: 20, paddingBottom: 16, paddingTop: 16 + insets.top }}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
+          <Ionicons name="close" size={26} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.title}>{isEditing ? 'Editar' : 'Nueva'} Transaccion</Text>
-        <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerBtn}>
-          <Text style={[styles.saveBtn, saving && { opacity: 0.5 }]}>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF', letterSpacing: -0.3 }}>{isEditing ? 'Editar' : 'Nueva'} Transaccion</Text>
+        <TouchableOpacity onPress={handleSave} disabled={saving} style={{ padding: 4 }}>
+          <Text style={[{ fontSize: 16, fontWeight: '700', color: '#FFFFFF' }, saving && { opacity: 0.5 }]}>
             {saving ? 'Guardando' : 'Guardar'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.typeToggle}>
+      <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: 20, backgroundColor: c.surface, borderRadius: 14, padding: 4, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 }}>
         <TouchableOpacity
-          style={[styles.typeBtn, type === 'expense' && styles.typeBtnExpense]}
+          style={{ flex: 1, paddingVertical: 12, borderRadius: 11, alignItems: 'center', backgroundColor: type === 'expense' ? c.expense : 'transparent' }}
           onPress={() => { setType('expense'); setSelectedCategory(null); }}
           activeOpacity={0.7}
         >
-          <Text style={[styles.typeText, type === 'expense' && styles.typeTextActive]}>Gasto</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: type === 'expense' ? '#FFFFFF' : c.textSecondary }}>Gasto</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.typeBtn, type === 'income' && styles.typeBtnIncome]}
+          style={{ flex: 1, paddingVertical: 12, borderRadius: 11, alignItems: 'center', backgroundColor: type === 'income' ? c.income : 'transparent' }}
           onPress={() => { setType('income'); setSelectedCategory(null); }}
           activeOpacity={0.7}
         >
-          <Text style={[styles.typeText, type === 'income' && styles.typeTextActive]}>Ingreso</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: type === 'income' ? '#FFFFFF' : c.textSecondary }}>Ingreso</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.amountRow}>
-        <Text style={styles.currencySign}>$</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 28, marginBottom: 16 }}>
+        <Text style={{ fontSize: 32, color: c.textSecondary, fontWeight: '300', marginRight: 4 }}>$</Text>
         <TextInput
-          style={styles.amountInput}
+          style={{ fontSize: 48, fontWeight: '800', color: c.text, textAlign: 'center', minWidth: 200, letterSpacing: -1 }}
           placeholder="0.00"
-          placeholderTextColor={Colors.textLight}
+          placeholderTextColor={c.textLight}
           keyboardType="decimal-pad"
           value={amount}
           onChangeText={setAmount}
@@ -125,19 +126,19 @@ export function AddTransactionScreen({ navigation }: any) {
       </View>
 
       <TextInput
-        style={styles.descInput}
+        style={{ backgroundColor: c.surface, marginHorizontal: 20, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: c.text, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 }}
         placeholder="Descripcion (opcional)"
-        placeholderTextColor={Colors.textLight}
+        placeholderTextColor={c.textLight}
         value={description}
         onChangeText={setDescription}
       />
 
-      <TouchableOpacity style={styles.dateRow} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
-        <View style={styles.dateIconBox}>
-          <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
+      <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, marginHorizontal: 20, marginTop: 10, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2, gap: 10 }} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
+        <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.background, justifyContent: 'center', alignItems: 'center' }}>
+          <Ionicons name="calendar-outline" size={18} color={c.textSecondary} />
         </View>
-        <Text style={styles.dateText}>{formatDate(date)}</Text>
-        <Ionicons name="chevron-down" size={18} color={Colors.textLight} />
+        <Text style={{ flex: 1, fontSize: 15, color: c.text, fontWeight: '500' }}>{formatDate(date)}</Text>
+        <Ionicons name="chevron-down" size={18} color={c.textLight} />
       </TouchableOpacity>
 
       <DatePickerModal
@@ -147,32 +148,26 @@ export function AddTransactionScreen({ navigation }: any) {
         onClose={() => setShowPicker(false)}
       />
 
-      <Text style={styles.sectionLabel}>Cuenta</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll}>
-        {accounts.filter(a => {
-          const bal = a.id;
-          return true;
-        }).map(acc => (
+      <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 24, marginBottom: 12, letterSpacing: -0.3 }}>Cuenta</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, paddingLeft: 20, marginBottom: 4 }}>
+        {accounts.map(acc => (
           <TouchableOpacity
             key={acc.id}
-            style={[
-              styles.accountItem,
-              selectedAccount?.id === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '12' },
-            ]}
+            style={[{ alignItems: 'center', marginRight: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: c.border }, selectedAccount?.id === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '12' }]}
             onPress={() => setSelectedAccount(selectedAccount?.id === acc.id ? null : acc)}
             activeOpacity={0.7}
           >
-            <View style={[styles.accountIcon, { backgroundColor: acc.color + '18' }]}>
+            <View style={{ width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6, backgroundColor: acc.color + '18' }}>
               <Ionicons name={acc.icon as any} size={20} color={acc.color} />
             </View>
-            <Text style={[styles.accountName, selectedAccount?.id === acc.id && { color: acc.color, fontWeight: '700' }]}>
+            <Text style={[{ fontSize: 12, fontWeight: '600', color: c.textSecondary, textAlign: 'center' }, selectedAccount?.id === acc.id && { color: acc.color, fontWeight: '700' }]}>
               {acc.name}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <Text style={styles.sectionLabel}>Categoria</Text>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 24, marginBottom: 12, letterSpacing: -0.3 }}>Categoria</Text>
       <CategorySelector
         categories={categories}
         selectedId={selectedCategory?.id ?? null}
@@ -184,112 +179,3 @@ export function AddTransactionScreen({ navigation }: any) {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  headerBtn: { padding: 4 },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.surface, letterSpacing: -0.3 },
-  saveBtn: { fontSize: 16, fontWeight: '700', color: Colors.surface },
-  typeToggle: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 20,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 4,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  typeBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 11,
-    alignItems: 'center',
-  },
-  typeBtnExpense: { backgroundColor: Colors.expense },
-  typeBtnIncome: { backgroundColor: Colors.income },
-  typeText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
-  typeTextActive: { color: Colors.surface },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 28,
-    marginBottom: 16,
-  },
-  currencySign: { fontSize: 32, color: Colors.textSecondary, fontWeight: '300', marginRight: 4 },
-  amountInput: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: Colors.text,
-    textAlign: 'center',
-    minWidth: 200,
-    letterSpacing: -1,
-  },
-  descInput: {
-    backgroundColor: Colors.surface,
-    marginHorizontal: 20,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: Colors.text,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    marginHorizontal: 20,
-    marginTop: 10,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
-    gap: 10,
-  },
-  dateIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dateText: { flex: 1, fontSize: 15, color: Colors.text, fontWeight: '500' },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-    marginHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 12,
-    letterSpacing: -0.3,
-  },
-  accountScroll: { flexGrow: 0, paddingLeft: 20, marginBottom: 4 },
-  accountItem: {
-    alignItems: 'center', marginRight: 10, paddingVertical: 10, paddingHorizontal: 14,
-    borderRadius: 14, borderWidth: 1.5, borderColor: Colors.border,
-  },
-  accountIcon: { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  accountName: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, textAlign: 'center' },
-});

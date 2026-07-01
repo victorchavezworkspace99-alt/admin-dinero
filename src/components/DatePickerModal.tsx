@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 interface Props {
   visible: boolean;
@@ -12,8 +12,12 @@ interface Props {
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.88, 360);
+const CELL_SIZE = Math.floor((CARD_WIDTH - 32) / 7);
 
 export function DatePickerModal({ visible, date, onSelect, onClose }: Props) {
+  const { colors: c } = useTheme();
   const [viewDate, setViewDate] = useState(date);
 
   const year = viewDate.getFullYear();
@@ -42,147 +46,59 @@ export function DatePickerModal({ visible, date, onSelect, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={styles.card} activeOpacity={1} onPress={() => {}}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={prev} style={styles.arrow}>
-              <Ionicons name="chevron-back" size={22} color={Colors.text} />
-            </TouchableOpacity>
-            <Text style={styles.monthYear}>{MONTHS[month]} {year}</Text>
-            <TouchableOpacity onPress={next} style={styles.arrow}>
-              <Ionicons name="chevron-forward" size={22} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.weekRow}>
-            {DAYS.map(d => <Text key={d} style={styles.weekDay}>{d}</Text>)}
-          </View>
-
-          {rows.map((row, ri) => (
-            <View key={ri} style={styles.weekRow}>
-              {row.map((day, di) => {
-                if (day === null) return <View key={`e-${di}`} style={styles.dayCell} />;
-                const isSelected = day === date.getDate() && month === date.getMonth() && year === date.getFullYear();
-                const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                const isPast = new Date(year, month, day + 1) <= today;
-                return (
-                  <TouchableOpacity
-                    key={day}
-                    style={[styles.dayCell, isSelected && styles.selectedDay]}
-                    onPress={() => handleSelect(day)}
-                    disabled={!isPast}
-                  >
-                    <Text style={[
-                      styles.dayText,
-                      isToday && !isSelected && styles.todayText,
-                      isSelected && styles.selectedDayText,
-                      !isPast && styles.disabledDay,
-                    ]}>
-                      {day}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+          <View style={{ backgroundColor: c.surface, borderRadius: 20, paddingVertical: 20, paddingHorizontal: 16, width: CARD_WIDTH, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 }}>
+              <TouchableOpacity onPress={prev} style={{ padding: 8, borderRadius: 10, backgroundColor: c.background }}>
+                <Ionicons name="chevron-back" size={22} color={c.text} />
+              </TouchableOpacity>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: c.text, letterSpacing: -0.3 }}>{MONTHS[month]} {year}</Text>
+              <TouchableOpacity onPress={next} style={{ padding: 8, borderRadius: 10, backgroundColor: c.background }}>
+                <Ionicons name="chevron-forward" size={22} color={c.text} />
+              </TouchableOpacity>
             </View>
-          ))}
 
-          <TouchableOpacity style={styles.todayBtn} onPress={() => handleSelect(today.getDate())}>
-            <Text style={styles.todayBtnText}>Hoy</Text>
-          </TouchableOpacity>
+            <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+              {DAYS.map(d => (
+                <Text key={d} style={{ width: CELL_SIZE, textAlign: 'center', fontSize: 12, fontWeight: '600', color: c.textLight, paddingVertical: 6 }}>{d}</Text>
+              ))}
+            </View>
+
+            {rows.map((row, ri) => (
+              <View key={ri} style={{ flexDirection: 'row' }}>
+                {row.map((day, di) => {
+                  if (day === null) return <View key={`e-${di}`} style={{ width: CELL_SIZE, height: CELL_SIZE, justifyContent: 'center', alignItems: 'center' }} />;
+                  const isSelected = day === date.getDate() && month === date.getMonth() && year === date.getFullYear();
+                  const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                  const isPast = new Date(year, month, day + 1) <= today;
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      style={{ width: CELL_SIZE, height: CELL_SIZE, justifyContent: 'center', alignItems: 'center', borderRadius: CELL_SIZE / 2, backgroundColor: isSelected ? c.primary : 'transparent' }}
+                      onPress={() => handleSelect(day)}
+                      disabled={!isPast}
+                    >
+                      <Text style={[
+                        { fontSize: 14, fontWeight: '500', color: c.text },
+                        isToday && !isSelected && { color: c.primary, fontWeight: '700' },
+                        isSelected && { color: c.surface, fontWeight: '700' },
+                        !isPast && { color: c.textLight, opacity: 0.4 },
+                      ]}>
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+
+            <TouchableOpacity style={{ alignSelf: 'center', marginTop: 12, paddingVertical: 8, paddingHorizontal: 24, borderRadius: 12, backgroundColor: c.primary + '12' }} onPress={() => handleSelect(today.getDate())}>
+              <Text style={{ color: c.primary, fontWeight: '700', fontSize: 14 }}>Hoy</Text>
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    width: '85%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  arrow: {
-    padding: 8,
-    borderRadius: 10,
-    backgroundColor: Colors.background,
-  },
-  monthYear: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-    letterSpacing: -0.3,
-  },
-  weekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 4,
-  },
-  weekDay: {
-    width: 40,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textLight,
-    paddingVertical: 6,
-  },
-  dayCell: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-  selectedDay: {
-    backgroundColor: Colors.primary,
-  },
-  dayText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  todayText: {
-    color: Colors.primary,
-    fontWeight: '700',
-  },
-  selectedDayText: {
-    color: Colors.surface,
-    fontWeight: '700',
-  },
-  disabledDay: {
-    color: Colors.textLight,
-    opacity: 0.4,
-  },
-  todayBtn: {
-    alignSelf: 'center',
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.primary + '12',
-  },
-  todayBtnText: {
-    color: Colors.primary,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-});

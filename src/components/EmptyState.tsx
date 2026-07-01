@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 interface Props {
   icon?: string;
@@ -10,48 +10,14 @@ interface Props {
 }
 
 export function EmptyState({ icon = 'wallet-outline', title, subtitle }: Props) {
+  const { colors: c } = useTheme();
   return (
-    <View style={styles.container}>
-      <View style={styles.iconRing}>
-        <Ionicons name={icon as any} size={48} color={Colors.textLight} />
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, paddingVertical: 60 }}>
+      <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: c.background, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: c.border }}>
+        <Ionicons name={icon as any} size={48} color={c.textLight} />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      <Text style={{ fontSize: 17, fontWeight: '600', color: c.textSecondary, marginTop: 20, textAlign: 'center', letterSpacing: -0.3 }}>{title}</Text>
+      {subtitle && <Text style={{ fontSize: 14, color: c.textLight, marginTop: 8, textAlign: 'center', lineHeight: 20 }}>{subtitle}</Text>}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
-  },
-  iconRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginTop: 20,
-    textAlign: 'center',
-    letterSpacing: -0.3,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textLight,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});

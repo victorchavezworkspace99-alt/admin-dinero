@@ -3,12 +3,17 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, A
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import { getBalance, getMonthlySummary, getTransactions, getBalancesByAccount } from '../database/database';
+import { getBalance, getMonthlySummary, getTransactions, getBalancesByAccount, getSummaryForDateRange } from '../database/database';
 import { TransactionItem } from '../components/TransactionItem';
 import { EmptyState } from '../components/EmptyState';
+import { DateRangeFilter } from '../components/DateRangeFilter';
 import { Transaction, MonthlySummary } from '../types';
 
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MONTHS_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
+function formatDateStr(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 
 function SpringScale({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   const scale = useRef(new Animated.Value(0.9)).current;
@@ -32,21 +37,58 @@ export function HomeScreen({ navigation }: any) {
   const [recentTx, setRecentTx] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [accountBalances, setAccountBalances] = useState<any[]>([]);
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [showFilter, setShowFilter] = useState(false);
 
   const loadData = useCallback(() => {
-    getMonthlySummary(month, year).then(setSummary);
-    getBalance().then(setBalance);
-    getTransactions(undefined, undefined, month, year).then((tx) => setRecentTx(tx.slice(0, 5)));
-    getBalancesByAccount().then(setAccountBalances);
-  }, [month, year]);
+    if (dateRange) {
+      const s = formatDateStr(dateRange.start);
+      const e = formatDateStr(dateRange.end);
+      return Promise.all([
+        getSummaryForDateRange(s, e).then(r => setSummary({ month, year, ...r })),
+        getBalance().then(setBalance),
+        getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, s, e).then((tx) => setRecentTx(tx.slice(0, 5))),
+        getBalancesByAccount().then(setAccountBalances),
+      ]);
+    }
+    return Promise.all([
+      getMonthlySummary(month, year).then(setSummary),
+      getBalance().then(setBalance),
+      getTransactions(undefined, undefined, month, year).then((tx) => setRecentTx(tx.slice(0, 5))),
+      getBalancesByAccount().then(setAccountBalances),
+    ]);
+  }, [month, year, dateRange]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
-    setTimeout(() => setRefreshing(false), 500);
+    loadData().finally(() => setRefreshing(false));
   };
+
+  const [dayStats, setDayStats] = useState<{ bestDay: string; bestAmount: number; worstDay: string; worstAmount: number; txCount: number }>({ bestDay: '--', bestAmount: 0, worstDay: '--', worstAmount: 0, txCount: 0 });
+  useEffect(() => {
+    const p = dateRange
+      ? getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, formatDateStr(dateRange.start), formatDateStr(dateRange.end))
+      : getTransactions(undefined, undefined, month, year);
+    p.then((txs) => {
+      if (txs.length === 0) return;
+      const byDay: Record<string, { income: number; expense: number }> = {};
+      for (const tx of txs) {
+        const day = tx.date.substring(8, 10) + ' ' + MONTHS[new Date(tx.date).getMonth()];
+        if (!byDay[day]) byDay[day] = { income: 0, expense: 0 };
+        if (tx.type === 'income') byDay[day].income += tx.amount;
+        else byDay[day].expense += tx.amount;
+      }
+      let bestDay = '', bestAmount = 0, worstDay = '', worstAmount = 0;
+      for (const [d, v] of Object.entries(byDay)) {
+        const net = v.income - v.expense;
+        if (net > bestAmount) { bestDay = d; bestAmount = net; }
+        if (net < worstAmount) { worstDay = d; worstAmount = net; }
+      }
+      setDayStats({ bestDay, bestAmount, worstDay, worstAmount, txCount: txs.length });
+    });
+      }, [month, year, dateRange]);
 
   const changeMonth = (delta: number) => {
     let m = month + delta, y = year;
@@ -105,18 +147,32 @@ export function HomeScreen({ navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[c.primary]} />}
     >
       <View style={s.header}>
-        <Text style={s.greeting}>Hola, {userName}</Text>
-        <Text style={s.balanceLabel}>Balance Total</Text>
-        <Text style={[s.balance, { color: balance >= 0 ? c.income : c.expense }]}>
-          {fm(balance)}
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View>
+            <Text style={s.greeting}>Hola, {userName}</Text>
+            <Text style={s.balanceLabel}>Balance Total</Text>
+            <Text style={[s.balance, { color: balance >= 0 ? c.income : c.expense }]}>
+              {fm(balance)}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setShowFilter(true)} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={0.7}>
+            <Ionicons name={dateRange ? "funnel" : "calendar-outline"} size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={s.monthNav}>
         <TouchableOpacity onPress={() => changeMonth(-1)} style={s.monthBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={20} color={c.text} />
         </TouchableOpacity>
-        <Text style={s.monthText}>{MONTHS[month - 1]} {year}</Text>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={s.monthText}>{dateRange ? `Filtro activo` : `${MONTHS[month - 1]} ${year}`}</Text>
+          {dateRange && (
+            <Text style={{ fontSize: 11, color: c.primary, fontWeight: '600', marginTop: -2 }}>
+              {`${dateRange.start.getDate()} ${MONTHS_FULL[dateRange.start.getMonth()]} - ${dateRange.end.getDate()} ${MONTHS_FULL[dateRange.end.getMonth()]}`}
+            </Text>
+          )}
+        </View>
         <TouchableOpacity onPress={() => changeMonth(1)} style={s.monthBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-forward" size={20} color={c.text} />
         </TouchableOpacity>
@@ -181,6 +237,15 @@ export function HomeScreen({ navigation }: any) {
       )}
 
       <View style={{ height: 100 }} />
+
+      <DateRangeFilter
+        visible={showFilter}
+        startDate={dateRange?.start ?? null}
+        endDate={dateRange?.end ?? null}
+        onApply={(s, e) => setDateRange({ start: s, end: e })}
+        onClear={() => setDateRange(null)}
+        onClose={() => setShowFilter(false)}
+      />
     </ScrollView>
   );
 }

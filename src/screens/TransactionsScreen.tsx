@@ -1,24 +1,31 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, Alert, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import { getTransactions, deleteTransaction } from '../database/database';
 import { TransactionItem } from '../components/TransactionItem';
 import { EmptyState } from '../components/EmptyState';
 import { Transaction } from '../types';
 
 export function TransactionsScreen({ navigation }: any) {
+  const { colors: c } = useTheme();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(() => {
     const typeParam = filterType === 'all' ? undefined : filterType;
-    getTransactions(typeParam, undefined, undefined, undefined, search || undefined).then(setTransactions);
+    return getTransactions(typeParam, undefined, undefined, undefined, search || undefined).then(setTransactions);
   }, [filterType, search]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData().finally(() => setRefreshing(false));
+  };
 
   const confirmDelete = (tx: Transaction) => {
     Alert.alert('Eliminar Transaccion', `Eliminar ${tx.category_name} por ${tx.amount}?`, [
@@ -31,40 +38,40 @@ export function TransactionsScreen({ navigation }: any) {
 
   const FilterBtn = ({ label, value }: { label: string; value: 'all' | 'income' | 'expense' }) => (
     <TouchableOpacity
-      style={[styles.filterBtn, filterType === value && styles.filterBtnActive]}
+      style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === value ? c.primary : c.surface, borderWidth: 1, borderColor: filterType === value ? c.primary : c.border }}
       onPress={() => setFilterType(value)}
       activeOpacity={0.7}
     >
-      <Text style={[styles.filterText, filterType === value && styles.filterTextActive]}>{label}</Text>
+      <Text style={{ fontSize: 14, fontWeight: '600', color: filterType === value ? '#FFFFFF' : c.textSecondary }}>{label}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Transacciones</Text>
+    <View style={{ flex: 1, backgroundColor: c.background }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.primary, paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 }}>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 }}>Transacciones</Text>
         <TouchableOpacity onPress={() => navigation.navigate('AddTransaction')}>
-          <Ionicons name="add-circle" size={28} color={Colors.surface} />
+          <Ionicons name="add-circle" size={28} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color={Colors.textLight} style={{ marginRight: 8 }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, marginHorizontal: 16, marginTop: 12, borderRadius: 14, paddingHorizontal: 14, height: 44, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 }}>
+        <Ionicons name="search" size={18} color={c.textLight} style={{ marginRight: 8 }} />
         <TextInput
-          style={styles.searchInput}
+          style={{ flex: 1, fontSize: 15, color: c.text }}
           placeholder="Buscar transacciones..."
-          placeholderTextColor={Colors.textLight}
+          placeholderTextColor={c.textLight}
           value={search}
           onChangeText={setSearch}
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={18} color={Colors.textLight} />
+            <Ionicons name="close-circle" size={18} color={c.textLight} />
           </TouchableOpacity>
         ) : null}
       </View>
 
-      <View style={styles.filters}>
+      <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginVertical: 12, gap: 8 }}>
         <FilterBtn label="Todos" value="all" />
         <FilterBtn label="Ingresos" value="income" />
         <FilterBtn label="Gastos" value="expense" />
@@ -73,6 +80,7 @@ export function TransactionsScreen({ navigation }: any) {
       <FlatList
         data={transactions}
         keyExtractor={(item) => item.id.toString()}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[c.primary]} />}
         renderItem={({ item }) => (
           <TransactionItem
             transaction={item}
@@ -89,45 +97,3 @@ export function TransactionsScreen({ navigation }: any) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingTop: 52,
-    paddingBottom: 16,
-  },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.surface, letterSpacing: -0.5 },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 44,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: Colors.text },
-  filters: { flexDirection: 'row', paddingHorizontal: 16, marginVertical: 12, gap: 8 },
-  filterBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
-  filterTextActive: { color: Colors.surface },
-});

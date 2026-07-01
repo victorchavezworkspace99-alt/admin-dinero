@@ -46,14 +46,8 @@ export function SettingsScreen() {
     try {
       const { exportDatabase } = await import('../database/database');
       const srcUri = await exportDatabase();
-      const { File } = await import('expo-file-system');
-      const srcFile = new File(srcUri);
-      const bytes = await srcFile.bytes();
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64 = btoa(binary);
+      const { readAsStringAsync } = await import('expo-file-system/legacy');
+      const base64 = await readAsStringAsync(srcUri, { encoding: 'base64' });
       const { StorageAccessFramework } = await import('expo-file-system/legacy');
       const destUri = await StorageAccessFramework.createFileAsync(
         StorageAccessFramework.getUriForDirectoryInRoot('Downloads'),

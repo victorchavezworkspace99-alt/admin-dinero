@@ -255,7 +255,9 @@ export async function getTransactions(
   month?: number,
   year?: number,
   search?: string,
-  account_id?: number
+  account_id?: number,
+  startDate?: string,
+  endDate?: string
 ): Promise<Transaction[]> {
   const database = await openDatabase();
   let query = `
@@ -271,7 +273,10 @@ export async function getTransactions(
   if (type) { query += ' AND t.type = ?'; params.push(type); }
   if (category_id) { query += ' AND t.category_id = ?'; params.push(category_id); }
   if (account_id) { query += ' AND t.account_id = ?'; params.push(account_id); }
-  if (month && year) {
+  if (startDate && endDate) {
+    query += ' AND t.date >= ? AND t.date <= ?';
+    params.push(startDate, endDate);
+  } else if (month && year) {
     query += " AND CAST(strftime('%m', t.date) AS INTEGER) = ? AND CAST(strftime('%Y', t.date) AS INTEGER) = ?";
     params.push(month, year);
   }
@@ -451,6 +456,23 @@ export async function getMonthlyTrends(months: number): Promise<{ month: number;
     results.push({ month: m, year: y, income: row?.income ?? 0, expense: row?.expense ?? 0 });
   }
   return results;
+}
+
+export async function getSummaryForDateRange(startDate: string, endDate: string): Promise<{ income: number; expense: number; balance: number }> {
+  const database = await openDatabase();
+  const result = await database.getFirstAsync<{ income: number; expense: number }>(
+    `SELECT
+      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+    FROM transactions
+    WHERE date >= ? AND date <= ?`,
+    [startDate, endDate]
+  );
+  return {
+    income: result?.income ?? 0,
+    expense: result?.expense ?? 0,
+    balance: (result?.income ?? 0) - (result?.expense ?? 0),
+  };
 }
 
 export async function getCategorySummaryForDateRange(
