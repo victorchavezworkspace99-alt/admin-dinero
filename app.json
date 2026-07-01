@@ -12,7 +12,12 @@
     "splash": {
       "backgroundColor": "#1A6DF0",
       "resizeMode": "contain",
-      "image": "./assets/iconoapp.png"
+      "image": "./assets/iconoapp.png",
+      "dark": {
+        "backgroundColor": "#111827",
+        "image": "./assets/iconoapp.png",
+        "resizeMode": "contain"
+      }
     },
     "ios": {
       "supportsTablet": true,

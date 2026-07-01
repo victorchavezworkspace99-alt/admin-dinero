@@ -1,5 +1,5 @@
-import { File, Directory, Paths } from 'expo-file-system';
-import { StorageAccessFramework } from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Linking, Alert, Platform } from 'react-native';
 
@@ -25,38 +25,60 @@ export async function checkNativeUpdate(): Promise<UpdateInfo | null> {
   }
 }
 
-export async function downloadAndInstallAPK(apkUrl: string, version: string): Promise<void> {
-  const result = await File.downloadFileAsync(apkUrl, new Directory(Paths.cache), { idempotent: true });
-  const filePath = result.uri;
+export async function downloadAndInstallAPK(
+  apkUrl: string,
+  version: string,
+  onProgress: (progress: number) => void
+): Promise<void> {
+  const { cacheDirectory, createDownloadResumable, StorageAccessFramework } = FileSystem;
+  const localUri = `${cacheDirectory}BalancePro-${version}.apk`;
 
-  if (Platform.OS === 'android') {
-    try {
-      const bytes = await result.bytes();
-      const base64 = arrayBufferToBase64(bytes);
-      const safeUri = await StorageAccessFramework.createFileAsync(
-        StorageAccessFramework.getUriForDirectoryInRoot('Downloads'),
-        `BalancePro-${version}`,
-        'application/vnd.android.package-archive'
-      );
-      await StorageAccessFramework.writeAsStringAsync(safeUri, base64);
-      await Linking.openURL(safeUri);
-    } catch {
-      Alert.alert(
-        'APK Descargado',
-        'Revisa la carpeta de Descargas para instalar la actualizacion.'
-      );
+  const downloadResumable = createDownloadResumable(
+    apkUrl,
+    localUri,
+    {},
+    (downloadProgress) => {
+      const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+      onProgress(Math.round(progress * 100));
     }
-  } else {
-    Linking.openURL(apkUrl);
-  }
-}
+  );
 
-function arrayBufferToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  try {
+    const downloadResult = await downloadResumable.downloadAsync();
+    if (!downloadResult) throw new Error('Descarga vacia');
+    const { uri } = downloadResult;
+
+    if (Platform.OS === 'android') {
+      const { readAsStringAsync } = FileSystem;
+      const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
+
+      let downloadsUri = await AsyncStorage.getItem('@backup_saf_uri');
+      if (!downloadsUri) {
+        // Request folder permissions
+        const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (permissions.granted) {
+          downloadsUri = permissions.directoryUri;
+          await AsyncStorage.setItem('@backup_saf_uri', downloadsUri);
+        }
+      }
+
+      if (downloadsUri) {
+        const safeUri = await StorageAccessFramework.createFileAsync(
+          downloadsUri,
+          `BalancePro-${version}.apk`,
+          'application/vnd.android.package-archive'
+        );
+        await StorageAccessFramework.writeAsStringAsync(safeUri, base64, { encoding: 'base64' });
+        await Linking.openURL(safeUri);
+      } else {
+        throw new Error('Permisos SAF denegados');
+      }
+    } else {
+      await Linking.openURL(apkUrl);
+    }
+  } catch (error: any) {
+    Alert.alert('Error de instalacion', error?.message || 'No se pudo completar la instalacion.');
   }
-  return btoa(binary);
 }
 
 function compareVersions(a: string, b: string): number {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useUpdates } from 'expo-updates';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, FlatList, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -9,12 +10,16 @@ import Constants from 'expo-constants';
 
 export function SettingsScreen() {
   const { colors, settings, updateSettings } = useTheme();
+  const otaUpdates = useUpdates();
   const [showCurrency, setShowCurrency] = useState(false);
   const [showTheme, setShowTheme] = useState(false);
   const [showName, setShowName] = useState(false);
   const [editName, setEditName] = useState(settings.userName);
   const [exporting, setExporting] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [isDownloadingNative, setIsDownloadingNative] = useState(false);
+  const [updateType, setUpdateType] = useState<'ota' | 'native' | null>(null);
 
   const handleReset = () => {
     Alert.alert('Reiniciar Datos', 'Se eliminaran todas las transacciones y presupuestos.', [
@@ -131,8 +136,9 @@ export function SettingsScreen() {
       const Updates = await import('expo-updates');
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
-        Alert.alert('Actualizacion JS disponible', 'Descargando...', [
-          { text: 'Aplicar ahora', onPress: async () => {
+        Alert.alert('Actualizacion JS disponible', 'Descargar e instalar ahora?', [
+          { text: 'Descargar', onPress: async () => {
+            setUpdateType('ota');
             await Updates.fetchUpdateAsync();
             await Updates.reloadAsync();
           }},
@@ -154,12 +160,20 @@ export function SettingsScreen() {
     } catch {}
 
     if (nativeUpdate) {
-      const { downloadAndInstallAPK } = await import('../utils/checkNativeUpdate');
       Alert.alert(
         'Nueva version APK disponible',
         `v${nativeUpdate.latestVersion}\n\n${nativeUpdate.changelog}`,
         [
-          { text: 'Descargar e Instalar', onPress: () => downloadAndInstallAPK(nativeUpdate.apkUrl, nativeUpdate.latestVersion) },
+          { text: 'Descargar e Instalar', onPress: async () => {
+            setUpdateType('native');
+            setIsDownloadingNative(true);
+            setUpdateProgress(0);
+            const { downloadAndInstallAPK } = await import('../utils/checkNativeUpdate');
+            await downloadAndInstallAPK(nativeUpdate.apkUrl, nativeUpdate.latestVersion, (p: number) => {
+              setUpdateProgress(p);
+            });
+            setIsDownloadingNative(false);
+          }},
           { text: 'Ahora no', style: 'cancel' },
         ]
       );
@@ -396,6 +410,32 @@ export function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {(isDownloadingNative || (updateType === 'ota' && otaUpdates.isDownloading)) && (
+        <Modal transparent visible animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+            <View style={{ backgroundColor: c.surface, borderRadius: 24, padding: 32, width: '100%', maxWidth: 320, alignItems: 'center', shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: c.primaryLight, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+                <Ionicons name={updateType === 'native' ? "download-outline" : "logo-javascript"} size={32} color={c.primary} />
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 8 }}>
+                {updateType === 'native' ? 'Descargando Rebuild' : 'Instalando Actualizacion'}
+              </Text>
+              <Text style={{ fontSize: 13, color: c.textSecondary, textAlign: 'center', marginBottom: 24 }}>
+                {updateType === 'native'
+                  ? 'Descargando nueva version del APK para instalar nuevos modulos nativos...'
+                  : 'Descargando ultima version de parches de codigo en segundo plano...'}
+              </Text>
+              <View style={{ width: '100%', height: 10, backgroundColor: c.border, borderRadius: 5, overflow: 'hidden', marginBottom: 12 }}>
+                <View style={{ height: '100%', backgroundColor: c.primary, width: `${updateType === 'native' ? updateProgress : Math.round((otaUpdates.downloadProgress || 0) * 100)}%` }} />
+              </View>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: c.primary }}>
+                {updateType === 'native' ? updateProgress : Math.round((otaUpdates.downloadProgress || 0) * 100)}%
+              </Text>
+            </View>
+          </View>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
