@@ -11,7 +11,7 @@ import { Transaction } from '../types';
 export function TransactionsScreen({ navigation }: any) {
   const { colors: c } = useTheme();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -28,7 +28,8 @@ export function TransactionsScreen({ navigation }: any) {
   };
 
   const confirmDelete = (tx: Transaction) => {
-    Alert.alert('Eliminar Transaccion', `Eliminar ${tx.category_name} por ${tx.amount}?`, [
+    const name = tx.type === 'transfer' ? 'Transferencia' : (tx.category_name || 'Sin categoria');
+    Alert.alert('Eliminar Transaccion', `Eliminar ${name} por ${tx.amount}?`, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: () => {
         deleteTransaction(tx.id).then(loadData);
@@ -36,7 +37,7 @@ export function TransactionsScreen({ navigation }: any) {
     ]);
   };
 
-  const FilterBtn = ({ label, value }: { label: string; value: 'all' | 'income' | 'expense' }) => (
+  const FilterBtn = ({ label, value }: { label: string; value: 'all' | 'income' | 'expense' | 'transfer' }) => (
     <TouchableOpacity
       style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: filterType === value ? c.primary : c.surface, borderWidth: 1, borderColor: filterType === value ? c.primary : c.border }}
       onPress={() => setFilterType(value)}
@@ -71,10 +72,18 @@ export function TransactionsScreen({ navigation }: any) {
         ) : null}
       </View>
 
-      <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginVertical: 12, gap: 8 }}>
-        <FilterBtn label="Todos" value="all" />
-        <FilterBtn label="Ingresos" value="income" />
-        <FilterBtn label="Gastos" value="expense" />
+      <View style={{ height: 50, marginVertical: 8 }}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={['all', 'income', 'expense', 'transfer'] as const}
+          keyExtractor={(item) => item}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }}
+          renderItem={({ item }) => {
+            const labels = { all: 'Todos', income: 'Ingresos', expense: 'Gastos', transfer: 'Transf.' };
+            return <FilterBtn label={labels[item]} value={item} />;
+          }}
+        />
       </View>
 
       <FlatList

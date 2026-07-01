@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -115,7 +115,7 @@ export function BudgetsScreen() {
     });
   }, [categories, budgets, catSearch, editingBudget]);
 
-  const s = {
+  const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.primary, paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 },
     title: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
@@ -161,7 +161,7 @@ export function BudgetsScreen() {
     typeOptionTextActive: { color: '#FFFFFF' },
     recurringBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 2 },
     recurringBadgeText: { fontSize: 10, fontWeight: '600', color: c.primary },
-  };
+  });
 
   return (
     <ScrollView style={s.container}>

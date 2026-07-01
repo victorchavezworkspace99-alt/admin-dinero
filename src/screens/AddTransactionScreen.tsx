@@ -7,7 +7,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { getCategories, getAccounts, addTransaction, updateTransaction } from '../database/database';
 import { CategorySelector } from '../components/CategorySelector';
 import { DatePickerModal } from '../components/DatePickerModal';
-import { Category, Account, Transaction } from '../types';
+import { Category, Account, Transaction, TransactionType } from '../types';
 
 export function AddTransactionScreen({ navigation }: any) {
   const { colors: c } = useTheme();
@@ -18,13 +18,14 @@ export function AddTransactionScreen({ navigation }: any) {
   const editTx = (route.params as any)?.transaction as Transaction | undefined;
   const isEditing = !!editTx;
 
-  const [type, setType] = useState<'income' | 'expense'>((editTx?.type as any) || 'expense');
+  const [type, setType] = useState<TransactionType>((editTx?.type as any) || 'expense');
   const [amount, setAmount] = useState(editTx ? String(editTx.amount) : '');
   const [description, setDescription] = useState(editTx?.description || '');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [selectedDestAccount, setSelectedDestAccount] = useState<Account | null>(null);
   const [dateStr, setDateStr] = useState(editTx?.date || todayStr);
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,6 +44,10 @@ export function AddTransactionScreen({ navigation }: any) {
         const acc = accs.find(a => a.id === editTx.account_id);
         if (acc) setSelectedAccount(acc);
       }
+      if (editTx && editTx.destination_account_id) {
+        const acc = accs.find(a => a.id === editTx.destination_account_id);
+        if (acc) setSelectedDestAccount(acc);
+      }
     });
   }, [editTx]));
 
@@ -51,16 +56,41 @@ export function AddTransactionScreen({ navigation }: any) {
       Alert.alert('Monto Invalido', 'Ingresa un monto mayor a cero');
       return;
     }
-    if (!selectedCategory) {
+    if (type !== 'transfer' && !selectedCategory) {
       Alert.alert('Categoria Requerida', 'Selecciona una categoria');
+      return;
+    }
+    if (type === 'transfer' && (!selectedAccount || !selectedDestAccount)) {
+      Alert.alert('Cuentas Requeridas', 'Selecciona cuenta origen y destino');
+      return;
+    }
+    if (type === 'transfer' && selectedAccount?.id === selectedDestAccount?.id) {
+      Alert.alert('Cuentas Identicas', 'La cuenta origen y destino deben ser diferentes');
       return;
     }
     setSaving(true);
     try {
       if (isEditing && editTx) {
-        await updateTransaction(editTx.id, parseFloat(amount), type, selectedCategory.id, description, dateStr, selectedAccount?.id);
+        await updateTransaction(
+          editTx.id,
+          parseFloat(amount),
+          type,
+          type === 'transfer' ? null : selectedCategory!.id,
+          description,
+          dateStr,
+          selectedAccount?.id,
+          type === 'transfer' ? selectedDestAccount?.id : undefined
+        );
       } else {
-        await addTransaction(parseFloat(amount), type, selectedCategory.id, description, dateStr, selectedAccount?.id);
+        await addTransaction(
+          parseFloat(amount),
+          type,
+          type === 'transfer' ? null : selectedCategory!.id,
+          description,
+          dateStr,
+          selectedAccount?.id,
+          type === 'transfer' ? selectedDestAccount?.id : undefined
+        );
       }
       navigation.goBack();
     } catch {
@@ -97,6 +127,13 @@ export function AddTransactionScreen({ navigation }: any) {
           activeOpacity={0.7}
         >
           <Text style={{ fontSize: 15, fontWeight: '600', color: type === 'income' ? '#FFFFFF' : c.textSecondary }}>Ingreso</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 12, borderRadius: 11, alignItems: 'center', backgroundColor: type === 'transfer' ? c.primary : 'transparent' }}
+          onPress={() => { setType('transfer'); setSelectedCategory(null); }}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: type === 'transfer' ? '#FFFFFF' : c.textSecondary }}>Transferencia</Text>
         </TouchableOpacity>
       </View>
 
@@ -136,32 +173,80 @@ export function AddTransactionScreen({ navigation }: any) {
         onClose={() => setShowPicker(false)}
       />
 
-      <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 24, marginBottom: 12, letterSpacing: -0.3 }}>Cuenta</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, paddingLeft: 20, marginBottom: 4 }}>
-        {accounts.map(acc => (
-          <TouchableOpacity
-            key={acc.id}
-            style={[{ alignItems: 'center', marginRight: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: c.border }, selectedAccount?.id === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '12' }]}
-            onPress={() => setSelectedAccount(selectedAccount?.id === acc.id ? null : acc)}
-            activeOpacity={0.7}
-          >
-            <View style={{ width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6, backgroundColor: acc.color + '18' }}>
-              <Ionicons name={acc.icon as any} size={20} color={acc.color} />
-            </View>
-            <Text style={[{ fontSize: 12, fontWeight: '600', color: c.textSecondary, textAlign: 'center' }, selectedAccount?.id === acc.id && { color: acc.color, fontWeight: '700' }]}>
-              {acc.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {type !== 'transfer' ? (
+        <>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 24, marginBottom: 12, letterSpacing: -0.3 }}>Cuenta</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, paddingLeft: 20, marginBottom: 4 }}>
+            {accounts.map(acc => (
+              <TouchableOpacity
+                key={acc.id}
+                style={[{ alignItems: 'center', marginRight: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: c.border }, selectedAccount?.id === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '12' }]}
+                onPress={() => setSelectedAccount(selectedAccount?.id === acc.id ? null : acc)}
+                activeOpacity={0.7}
+              >
+                <View style={{ width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6, backgroundColor: acc.color + '18' }}>
+                  <Ionicons name={acc.icon as any} size={20} color={acc.color} />
+                </View>
+                <Text style={[{ fontSize: 12, fontWeight: '600', color: c.textSecondary, textAlign: 'center' }, selectedAccount?.id === acc.id && { color: acc.color, fontWeight: '700' }]}>
+                  {acc.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
+      ) : (
+        <>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 24, marginBottom: 12, letterSpacing: -0.3 }}>Cuenta Origen</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, paddingLeft: 20, marginBottom: 4 }}>
+            {accounts.filter(a => a.id !== selectedDestAccount?.id).map(acc => (
+              <TouchableOpacity
+                key={acc.id}
+                style={[{ alignItems: 'center', marginRight: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: c.border }, selectedAccount?.id === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '12' }]}
+                onPress={() => setSelectedAccount(selectedAccount?.id === acc.id ? null : acc)}
+                activeOpacity={0.7}
+              >
+                <View style={{ width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6, backgroundColor: acc.color + '18' }}>
+                  <Ionicons name={acc.icon as any} size={20} color={acc.color} />
+                </View>
+                <Text style={[{ fontSize: 12, fontWeight: '600', color: c.textSecondary, textAlign: 'center' }, selectedAccount?.id === acc.id && { color: acc.color, fontWeight: '700' }]}>
+                  {acc.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-      <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 24, marginBottom: 12, letterSpacing: -0.3 }}>Categoria</Text>
-      <CategorySelector
-        categories={categories}
-        selectedId={selectedCategory?.id ?? null}
-        onSelect={setSelectedCategory}
-        type={type}
-      />
+          <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 18, marginBottom: 12, letterSpacing: -0.3 }}>Cuenta Destino</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, paddingLeft: 20, marginBottom: 4 }}>
+            {accounts.filter(a => a.id !== selectedAccount?.id).map(acc => (
+              <TouchableOpacity
+                key={acc.id}
+                style={[{ alignItems: 'center', marginRight: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: c.border }, selectedDestAccount?.id === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '12' }]}
+                onPress={() => setSelectedDestAccount(selectedDestAccount?.id === acc.id ? null : acc)}
+                activeOpacity={0.7}
+              >
+                <View style={{ width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 6, backgroundColor: acc.color + '18' }}>
+                  <Ionicons name={acc.icon as any} size={20} color={acc.color} />
+                </View>
+                <Text style={[{ fontSize: 12, fontWeight: '600', color: c.textSecondary, textAlign: 'center' }, selectedDestAccount?.id === acc.id && { color: acc.color, fontWeight: '700' }]}>
+                  {acc.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
+      {type !== 'transfer' && (
+        <>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginHorizontal: 20, marginTop: 24, marginBottom: 12, letterSpacing: -0.3 }}>Categoria</Text>
+          <CategorySelector
+            categories={categories}
+            selectedId={selectedCategory?.id ?? null}
+            onSelect={setSelectedCategory}
+            type={type}
+          />
+        </>
+      )}
 
       <View style={{ height: 100 + insets.bottom }} />
     </ScrollView>

@@ -19,6 +19,7 @@ export function CategoriesScreen() {
   const [selectedIcon, setSelectedIcon] = useState(ICONS[0]);
   const [selectedColor, setSelectedColor] = useState(CategoryColors[0]);
   const [catType, setCatType] = useState<'income' | 'expense'>('expense');
+  const [parentId, setParentId] = useState<number | null>(null);
 
   useFocusEffect(useCallback(() => {
     getCategories().then(setCategories);
@@ -30,15 +31,27 @@ export function CategoriesScreen() {
     return categories.filter(cat => cat.name.toLowerCase().includes(q));
   }, [categories, search]);
 
-  const incomeCats = filtered.filter(cat => cat.type === 'income');
-  const expenseCats = filtered.filter(cat => cat.type === 'expense');
+  const incomeCats = useMemo(() => {
+    if (search) {
+      return filtered.filter(cat => cat.type === 'income');
+    }
+    return categories.filter(cat => cat.type === 'income' && !cat.parent_id);
+  }, [filtered, categories, search]);
 
-  const openAdd = (type: 'income' | 'expense') => {
+  const expenseCats = useMemo(() => {
+    if (search) {
+      return filtered.filter(cat => cat.type === 'expense');
+    }
+    return categories.filter(cat => cat.type === 'expense' && !cat.parent_id);
+  }, [filtered, categories, search]);
+
+  const openAdd = (type: 'income' | 'expense', parent_id?: number | null) => {
     setEditItem(null);
     setName('');
     setSelectedIcon(ICONS[0]);
     setSelectedColor(CategoryColors[0]);
     setCatType(type);
+    setParentId(parent_id ?? null);
     setModalVisible(true);
   };
 
@@ -48,6 +61,7 @@ export function CategoriesScreen() {
     setSelectedIcon(cat.icon);
     setSelectedColor(cat.color);
     setCatType(cat.type);
+    setParentId(cat.parent_id ?? null);
     setModalVisible(true);
   };
 
@@ -60,7 +74,7 @@ export function CategoriesScreen() {
       if (editItem) {
         await updateCategory(editItem.id, name.trim(), selectedIcon, selectedColor);
       } else {
-        await addCategory(name.trim(), catType, selectedIcon, selectedColor);
+        await addCategory(name.trim(), catType, selectedIcon, selectedColor, parentId);
       }
       setModalVisible(false);
       getCategories().then(setCategories);
@@ -87,22 +101,51 @@ export function CategoriesScreen() {
     ]);
   };
 
-  const renderCategory = (item: Category) => (
+  const renderCategoryItem = (item: Category, isSub = false) => (
     <TouchableOpacity
       key={item.id}
-      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, marginHorizontal: 16, marginVertical: 3, borderRadius: 14, padding: 14, shadowColor: c.cardShadow, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1 }}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: c.surface,
+        marginHorizontal: 16,
+        marginLeft: isSub ? 40 : 16,
+        marginVertical: 3,
+        borderRadius: 14,
+        padding: 14,
+        shadowColor: c.cardShadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 1,
+        shadowRadius: 4,
+        elevation: 1,
+        borderLeftWidth: isSub ? 3 : 0,
+        borderLeftColor: item.color
+      }}
       onPress={() => openEdit(item)}
       onLongPress={() => handleDelete(item)}
       activeOpacity={0.7}
     >
-      <View style={{ width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12, backgroundColor: item.color + '18' }}>
-        <Ionicons name={item.icon as any} size={20} color={item.color} />
+      <View style={{ width: isSub ? 32 : 40, height: isSub ? 32 : 40, borderRadius: isSub ? 10 : 12, justifyContent: 'center', alignItems: 'center', marginRight: 12, backgroundColor: item.color + '18' }}>
+        <Ionicons name={item.icon as any} size={isSub ? 16 : 20} color={item.color} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, fontWeight: '600', color: c.text, letterSpacing: -0.2 }}>{item.name}</Text>
-        <Text style={{ fontSize: 12, color: c.textLight, marginTop: 2 }}>{item.type === 'income' ? 'Ingreso' : 'Gasto'}</Text>
+        <Text style={{ fontSize: isSub ? 14 : 15, fontWeight: '600', color: c.text, letterSpacing: -0.2 }}>{item.name}</Text>
+        {!isSub && (
+          <Text style={{ fontSize: 11, color: c.textLight, marginTop: 1 }}>{item.type === 'income' ? 'Ingreso' : 'Gasto'}</Text>
+        )}
       </View>
-      <Ionicons name="pencil" size={16} color={c.textLight} />
+
+      {!isSub && (
+        <TouchableOpacity
+          onPress={() => openAdd(item.type, item.id)}
+          style={{ padding: 6, marginRight: 8 }}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={c.primary} />
+        </TouchableOpacity>
+      )}
+
+      <Ionicons name="pencil" size={15} color={c.textLight} />
     </TouchableOpacity>
   );
 
@@ -145,7 +188,12 @@ export function CategoriesScreen() {
                 <Text style={{ fontSize: 14, color: c.primary, fontWeight: '600' }}>Agregar</Text>
               </TouchableOpacity>
             </View>
-            {item.data.map((cat) => renderCategory(cat))}
+            {item.data.map((cat) => (
+              <View key={cat.id}>
+                {renderCategoryItem(cat, !!search && !!cat.parent_id)}
+                {!search && categories.filter(c => c.parent_id === cat.id).map(sub => renderCategoryItem(sub, true))}
+              </View>
+            ))}
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -155,6 +203,14 @@ export function CategoriesScreen() {
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(28,28,30,0.4)' }}>
           <View style={{ backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '80%' }}>
             <Text style={{ fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 16, letterSpacing: -0.4 }}>{editItem ? 'Editar' : 'Nueva'} Categoria</Text>
+            {parentId && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.background, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 12, gap: 6 }}>
+                <Ionicons name="git-merge" size={14} color={c.primary} />
+                <Text style={{ fontSize: 13, color: c.textSecondary, fontWeight: '600' }}>
+                  Subcategoria de: {categories.find(c => c.id === parentId)?.name}
+                </Text>
+              </View>
+            )}
 
             <TextInput
               style={{ backgroundColor: c.background, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: c.text, marginBottom: 16 }}

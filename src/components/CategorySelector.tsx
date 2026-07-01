@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Category } from '../types';
@@ -19,7 +19,25 @@ interface Props {
 export function CategorySelector({ categories, selectedId, onSelect, type }: Props) {
   const { colors: c } = useTheme();
   const [search, setSearch] = useState('');
-  const filtered = categories.filter(cat => cat.type === type && cat.name.toLowerCase().includes(search.toLowerCase()));
+
+  const sorted = useMemo(() => {
+    const parentCats = categories.filter(cat => cat.type === type && !cat.parent_id);
+    const result: Category[] = [];
+    for (const parent of parentCats) {
+      result.push(parent);
+      const children = categories.filter(cat => cat.type === type && cat.parent_id === parent.id);
+      result.push(...children);
+    }
+    const orphans = categories.filter(cat => cat.type === type && cat.parent_id && !parentCats.some(p => p.id === cat.parent_id));
+    result.push(...orphans);
+    return result;
+  }, [categories, type]);
+
+  const filtered = useMemo(() => {
+    if (!search) return sorted;
+    const q = search.toLowerCase();
+    return sorted.filter(cat => cat.name.toLowerCase().includes(q));
+  }, [sorted, search]);
 
   return (
     <View>
@@ -41,10 +59,11 @@ export function CategorySelector({ categories, selectedId, onSelect, type }: Pro
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: GRID_PADDING, gap: GRID_GAP }}>
         {filtered.map((cat) => {
           const isSelected = selectedId === cat.id;
+          const displayName = cat.parent_id ? `↳ ${cat.name}` : cat.name;
           return (
             <TouchableOpacity
               key={cat.id}
-              style={[{ alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, borderRadius: 16, borderWidth: 1.5, borderColor: 'transparent', marginBottom: 4, width: ITEM_WIDTH, borderColor: isSelected ? cat.color : c.border }, isSelected && { backgroundColor: cat.color + '12' }]}
+              style={[{ alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, borderRadius: 16, borderWidth: 1.5, marginBottom: 4, width: ITEM_WIDTH, borderColor: isSelected ? cat.color : c.border }, isSelected && { backgroundColor: cat.color + '12' }]}
               onPress={() => onSelect(cat)}
               activeOpacity={0.7}
             >
@@ -52,7 +71,7 @@ export function CategorySelector({ categories, selectedId, onSelect, type }: Pro
                 <Ionicons name={cat.icon as any} size={24} color={cat.color} />
               </View>
               <Text style={{ fontSize: 12, fontWeight: '600', textAlign: 'center', letterSpacing: -0.2, color: isSelected ? cat.color : c.text }} numberOfLines={1}>
-                {cat.name}
+                {displayName}
               </Text>
             </TouchableOpacity>
           );

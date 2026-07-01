@@ -66,6 +66,7 @@ export function ReportsScreen() {
       if (txs.length === 0) { setDayStats({ bestDayLabel: '', bestAmount: 0, worstDayLabel: '', worstAmount: 0, txCount: 0 }); return; }
       const byDay: Record<string, { income: number; expense: number }> = {};
       for (const tx of txs) {
+        if (tx.type === 'transfer') continue;
         const d = new Date(tx.date);
         const label = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
         if (!byDay[label]) byDay[label] = { income: 0, expense: 0 };

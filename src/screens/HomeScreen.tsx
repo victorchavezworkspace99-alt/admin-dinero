@@ -75,6 +75,7 @@ export function HomeScreen({ navigation }: any) {
       if (txs.length === 0) return;
       const byDay: Record<string, { income: number; expense: number }> = {};
       for (const tx of txs) {
+        if (tx.type === 'transfer') continue;
         const day = tx.date.substring(8, 10) + ' ' + MONTHS[new Date(tx.date).getMonth()];
         if (!byDay[day]) byDay[day] = { income: 0, expense: 0 };
         if (tx.type === 'income') byDay[day].income += tx.amount;

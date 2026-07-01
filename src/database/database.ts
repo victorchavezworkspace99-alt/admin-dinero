@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { DefaultCategories } from '../theme/colors';
-import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account } from '../types';
+import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account, TransactionType } from '../types';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -13,7 +13,7 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
   return db;
 }
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 export async function initDatabase(): Promise<void> {
   let database = await openDatabase();
@@ -122,7 +122,79 @@ export async function initDatabase(): Promise<void> {
     if (colExists?.count === 0) {
       await database.execAsync('ALTER TABLE budgets ADD COLUMN is_recurring INTEGER DEFAULT 0');
     }
-    await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    await database.execAsync(`PRAGMA user_version = 3`);
+  }
+
+  if (currentVersion < 4) {
+    const catColExists = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM pragma_table_info("categories") WHERE name="parent_id"`
+    );
+    if (catColExists?.count === 0) {
+      await database.execAsync('ALTER TABLE categories ADD COLUMN parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL');
+    }
+
+    const accColExists = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM pragma_table_info("accounts") WHERE name="currency_code"`
+    );
+    if (accColExists?.count === 0) {
+      await database.execAsync("ALTER TABLE accounts ADD COLUMN currency_code TEXT DEFAULT 'PEN'");
+    }
+
+    const txDestColExists = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM pragma_table_info("transactions") WHERE name="destination_account_id"`
+    );
+    if (txDestColExists?.count === 0) {
+      await database.execAsync(`
+        ALTER TABLE transactions RENAME TO transactions_old;
+        
+        CREATE TABLE transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          amount REAL NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'transfer')),
+          category_id INTEGER NOT NULL,
+          description TEXT DEFAULT '',
+          date TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now','localtime')),
+          account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+          destination_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+        );
+        
+        INSERT INTO transactions (id, amount, type, category_id, description, date, created_at, account_id)
+        SELECT id, amount, type, category_id, description, date, created_at, account_id FROM transactions_old;
+        
+        DROP TABLE transactions_old;
+      `);
+    }
+
+    await database.execAsync(`
+      CREATE TABLE IF NOT EXISTS savings_goals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        current_amount REAL NOT NULL DEFAULT 0,
+        currency_code TEXT DEFAULT 'PEN',
+        deadline TEXT,
+        color TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS recurring_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amount REAL NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'transfer')),
+        category_id INTEGER NOT NULL,
+        source_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        destination_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        description TEXT DEFAULT '',
+        frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+        start_date TEXT NOT NULL,
+        next_date TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1,
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+      );
+    `);
+
+    await database.execAsync(`PRAGMA user_version = 4`);
   }
 }
 
@@ -138,11 +210,11 @@ export async function getCategories(type?: 'income' | 'expense'): Promise<Catego
   return database.getAllAsync<Category>(query, params);
 }
 
-export async function addCategory(name: string, type: 'income' | 'expense', icon: string, color: string): Promise<number> {
+export async function addCategory(name: string, type: 'income' | 'expense', icon: string, color: string, parent_id?: number | null): Promise<number> {
   const database = await openDatabase();
   const result = await database.runAsync(
-    'INSERT INTO categories (name, type, icon, color, is_default) VALUES (?, ?, ?, ?, 0)',
-    [name, type, icon, color]
+    'INSERT INTO categories (name, type, icon, color, is_default, parent_id) VALUES (?, ?, ?, ?, 0, ?)',
+    [name, type, icon, color, parent_id ?? null]
   );
   return result.lastInsertRowId;
 }
@@ -175,23 +247,24 @@ export async function getAccounts(): Promise<Account[]> {
 export async function getAccountBalance(id: number): Promise<number> {
   const database = await openDatabase();
   const result = await database.getFirstAsync<{ balance: number }>(
-    `SELECT COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) -
-            COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as balance
-     FROM transactions WHERE account_id = ?`,
-    [id]
+    `SELECT (
+       COALESCE((SELECT SUM(amount) FROM transactions WHERE (type = 'income' AND account_id = ?) OR (type = 'transfer' AND destination_account_id = ?)), 0) -
+       COALESCE((SELECT SUM(amount) FROM transactions WHERE (type = 'expense' AND account_id = ?) OR (type = 'transfer' AND account_id = ?)), 0)
+     ) as balance`,
+    [id, id, id, id]
   );
   return result?.balance ?? 0;
 }
 
-export async function getBalancesByAccount(): Promise<{ id: number; name: string; type: string; icon: string; color: string; balance: number }[]> {
+export async function getBalancesByAccount(): Promise<{ id: number; name: string; type: string; icon: string; color: string; currency_code: string; balance: number }[]> {
   const database = await openDatabase();
   return database.getAllAsync<any>(
-    `SELECT a.id, a.name, a.type, a.icon, a.color,
-       COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) -
-       COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as balance
+    `SELECT a.id, a.name, a.type, a.icon, a.color, a.currency_code,
+       (
+         COALESCE((SELECT SUM(amount) FROM transactions WHERE (type = 'income' AND account_id = a.id) OR (type = 'transfer' AND destination_account_id = a.id)), 0) -
+         COALESCE((SELECT SUM(amount) FROM transactions WHERE (type = 'expense' AND account_id = a.id) OR (type = 'transfer' AND account_id = a.id)), 0)
+       ) as balance
      FROM accounts a
-     LEFT JOIN transactions t ON a.id = t.account_id
-     GROUP BY a.id
      ORDER BY a.type, a.name`
   );
 }
@@ -241,22 +314,23 @@ export async function deleteAccount(id: number): Promise<void> {
 
 export async function addTransaction(
   amount: number,
-  type: 'income' | 'expense',
-  category_id: number,
+  type: TransactionType,
+  category_id: number | null,
   description: string,
   date: string,
-  account_id?: number
+  account_id?: number,
+  destination_account_id?: number
 ): Promise<number> {
   const database = await openDatabase();
   const result = await database.runAsync(
-    'INSERT INTO transactions (amount, type, category_id, description, date, account_id) VALUES (?, ?, ?, ?, ?, ?)',
-    [amount, type, category_id, description, date, account_id ?? null]
+    'INSERT INTO transactions (amount, type, category_id, description, date, account_id, destination_account_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [amount, type, category_id ?? null, description, date, account_id ?? null, destination_account_id ?? null]
   );
   return result.lastInsertRowId;
 }
 
 export async function getTransactions(
-  type?: 'income' | 'expense',
+  type?: TransactionType,
   category_id?: number,
   month?: number,
   year?: number,
@@ -268,17 +342,22 @@ export async function getTransactions(
   const database = await openDatabase();
   let query = `
     SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-       COALESCE(a.name, '') as account_name
+       COALESCE(a.name, '') as account_name,
+       COALESCE(da.name, '') as destination_account_name
     FROM transactions t
-    JOIN categories c ON t.category_id = c.id
+    LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN accounts da ON t.destination_account_id = da.id
     WHERE 1=1
   `;
   const params: any[] = [];
 
   if (type) { query += ' AND t.type = ?'; params.push(type); }
   if (category_id) { query += ' AND t.category_id = ?'; params.push(category_id); }
-  if (account_id) { query += ' AND t.account_id = ?'; params.push(account_id); }
+  if (account_id) {
+    query += ' AND (t.account_id = ? OR t.destination_account_id = ?)';
+    params.push(account_id, account_id);
+  }
   if (startDate && endDate) {
     query += ' AND t.date >= ? AND t.date <= ?';
     params.push(startDate, endDate);
@@ -299,16 +378,17 @@ export async function getTransactions(
 export async function updateTransaction(
   id: number,
   amount: number,
-  type: 'income' | 'expense',
-  category_id: number,
+  type: TransactionType,
+  category_id: number | null,
   description: string,
   date: string,
-  account_id?: number
+  account_id?: number,
+  destination_account_id?: number
 ): Promise<void> {
   const database = await openDatabase();
   await database.runAsync(
-    'UPDATE transactions SET amount = ?, type = ?, category_id = ?, description = ?, date = ?, account_id = ? WHERE id = ?',
-    [amount, type, category_id, description, date, account_id ?? null, id]
+    'UPDATE transactions SET amount = ?, type = ?, category_id = ?, description = ?, date = ?, account_id = ?, destination_account_id = ? WHERE id = ?',
+    [amount, type, category_id ?? null, description, date, account_id ?? null, destination_account_id ?? null, id]
   );
 }
 
@@ -340,7 +420,7 @@ export async function getCategorySummary(month: number, year: number, type: 'inc
   const database = await openDatabase();
   const rows = await database.getAllAsync<any>(
     `SELECT
-      c.id as category_id, c.name as category_name, c.icon, c.color,
+      c.id as category_id, c.name as category_name, c.icon, c.color, c.parent_id,
       COALESCE(SUM(t.amount), 0) as total
     FROM categories c
     LEFT JOIN transactions t ON c.id = t.category_id
@@ -367,7 +447,7 @@ export async function getBudgets(month: number, year: number): Promise<Budget[]>
       b.id, b.category_id, b.amount, b.month, b.year, b.is_recurring,
       c.name as category_name, c.icon as category_icon, c.color as category_color,
       COALESCE((SELECT SUM(t.amount) FROM transactions t
-        WHERE t.category_id = b.category_id
+        WHERE (t.category_id = b.category_id OR t.category_id IN (SELECT id FROM categories WHERE parent_id = b.category_id))
         AND CAST(strftime('%m', t.date) AS INTEGER) = b.month
         AND CAST(strftime('%Y', t.date) AS INTEGER) = b.year
         AND t.type = 'expense'), 0) as spent
@@ -489,7 +569,7 @@ export async function getCategorySummaryForDateRange(
   const database = await openDatabase();
   const rows = await database.getAllAsync<any>(
     `SELECT
-      c.id as category_id, c.name as category_name, c.icon, c.color,
+      c.id as category_id, c.name as category_name, c.icon, c.color, c.parent_id,
       COALESCE(SUM(t.amount), 0) as total
     FROM categories c
     LEFT JOIN transactions t ON c.id = t.category_id
