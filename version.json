@@ -1,5 +1,5 @@
 {
-  "latestVersion": "1.5.0",
-  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.5.0/BalancePro-v1.5.0.apk",
-  "changelog": "• Sistema de alertas automáticas diarias para actualizaciones OTA y APK con barra de progreso estética\n• Integración del permiso nativo REQUEST_INSTALL_PACKAGES para instalación directa desde la app\n• Corrección de actualización y sincronización instantánea y retroactiva en el desglose de reportes al editar transacciones a subcategorías\n• Selector contextual limpio de subcategorías con contador en categorías principales\n• Reportes con consolidación de subcategorías y desglose interactivo (drill-down)\n• Exportación estética del reporte actual en formato de imagen compartible\n• Integración de expo-splash-screen nativo para carga inicial fluida y sin parpadeos"
+  "latestVersion": "1.6.0",
+  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.6.0/BalancePro-v1.6.0.apk",
+  "changelog": "• Sincronización automática y retroactiva de categorías en transacciones generadas al editar plantillas de transacciones programadas\n• Sistema de alertas automáticas diarias para actualizaciones OTA y APK con barra de progreso estética\n• Integración del permiso nativo REQUEST_INSTALL_PACKAGES para instalación directa desde la app\n• Corrección de actualización y sincronización instantánea y retroactiva en el desglose de reportes al editar transacciones a subcategorías\n• Selector contextual limpio de subcategorías con contador en categorías principales\n• Reportes con consolidación de subcategorías y desglose interactivo (drill-down)\n• Exportación estética del reporte actual en formato de imagen compartible"
 }

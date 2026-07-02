@@ -158,6 +158,7 @@ export async function initDatabase(): Promise<void> {
           created_at TEXT DEFAULT (datetime('now','localtime')),
           account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
           destination_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+          recurring_transaction_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL,
           FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
         );
         
@@ -215,6 +216,42 @@ export async function initDatabase(): Promise<void> {
     }
 
     await database.execAsync(`PRAGMA user_version = 5`);
+  }
+
+  if (currentVersion < 6) {
+    const colExists = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM pragma_table_info("transactions") WHERE name="recurring_transaction_id"`
+    );
+    if (colExists?.count === 0) {
+      await database.execAsync('ALTER TABLE transactions ADD COLUMN recurring_transaction_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL');
+    }
+
+    // Heuristically link existing transactions to their templates
+    await database.runAsync(`
+      UPDATE transactions
+      SET recurring_transaction_id = (
+        SELECT rt.id FROM recurring_transactions rt
+        WHERE rt.amount = transactions.amount
+          AND rt.type = transactions.type
+          AND rt.description = transactions.description
+          AND rt.source_account_id = transactions.account_id
+          AND COALESCE(rt.destination_account_id, -1) = COALESCE(transactions.destination_account_id, -1)
+        LIMIT 1
+      )
+      WHERE recurring_transaction_id IS NULL
+    `);
+
+    // Retroactively sync categories of linked transactions to their templates
+    await database.runAsync(`
+      UPDATE transactions
+      SET category_id = (
+        SELECT rt.category_id FROM recurring_transactions rt
+        WHERE rt.id = transactions.recurring_transaction_id
+      )
+      WHERE recurring_transaction_id IS NOT NULL
+    `);
+
+    await database.execAsync(`PRAGMA user_version = 6`);
   }
 
   // Retroactively associate any orphan transactions with the default account
@@ -701,7 +738,7 @@ export async function processRecurringTransactions(): Promise<void> {
       if (nextDateStr > todayStr) break;
 
       await database.runAsync(
-        'INSERT INTO transactions (amount, type, category_id, description, date, account_id, destination_account_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO transactions (amount, type, category_id, description, date, account_id, destination_account_id, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [
           rec.amount,
           rec.type,
@@ -709,7 +746,8 @@ export async function processRecurringTransactions(): Promise<void> {
           rec.description,
           nextDateStr,
           rec.source_account_id,
-          rec.destination_account_id
+          rec.destination_account_id,
+          rec.id
         ]
       );
 
@@ -779,6 +817,12 @@ export async function updateRecurringTransaction(
   await database.runAsync(
     'UPDATE recurring_transactions SET amount = ?, type = ?, category_id = ?, source_account_id = ?, destination_account_id = ?, description = ?, frequency = ?, start_date = ?, next_date = ?, is_active = ? WHERE id = ?',
     [amount, type, category_id, source_account_id, destination_account_id, description, frequency, start_date, next_date, is_active, id]
+  );
+
+  // Retroactively update all previously generated transactions of this template
+  await database.runAsync(
+    'UPDATE transactions SET category_id = ?, description = ?, account_id = ?, destination_account_id = ? WHERE recurring_transaction_id = ?',
+    [category_id, description, source_account_id, destination_account_id, id]
   );
 }
 
