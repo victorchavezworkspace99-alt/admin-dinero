@@ -13,7 +13,7 @@ interface UpdateInfo {
 
 export async function checkNativeUpdate(): Promise<UpdateInfo | null> {
   try {
-    const resp = await fetch(UPDATE_INFO_URL, { cache: 'no-cache' });
+    const resp = await fetch(`${UPDATE_INFO_URL}?t=${Date.now()}`, { cache: 'no-cache' });
     const data: UpdateInfo = await resp.json();
     const currentVersion = Constants.expoConfig?.version || '1.0.0';
     if (compareVersions(data.latestVersion, currentVersion) > 0) {
