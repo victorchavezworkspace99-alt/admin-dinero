@@ -31,6 +31,7 @@ La versión de la aplicación sigue el formato `X.Y.Z` (ej. `1.2.0`), donde:
     2.  Reiniciar el tercer número (`Z`) estrictamente a **`0`**.
     3.  Incrementar de forma obligatoria el **`versionCode`** dentro de `"android"` en `app.json` (ej: de `10` a `11`). Esto es indispensable para que Android reconozca el nuevo APK como una actualización.
     4.  Subir cambios a GitHub y compilar con `eas build --platform android --profile production`.
+    5.  **Compilaciones Canceladas o Fallidas:** Si una compilación se cancela o falla en EAS antes de ser publicada oficialmente como una Release en GitHub, **NO** es necesario volver a incrementar la versión ni el `versionCode` para el siguiente intento. Se debe mantener la misma versión planificada, ya que nunca llegó a lanzarse públicamente.
 
 ---
 
