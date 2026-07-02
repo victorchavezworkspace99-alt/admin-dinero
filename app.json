@@ -26,6 +26,7 @@
     "android": {
       "package": "com.tudominio.balancepro",
       "softwareKeyboardLayoutMode": "pan",
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#1A6DF0",
         "foregroundImage": "./assets/iconoapp.png"
