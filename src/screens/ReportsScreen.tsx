@@ -176,37 +176,42 @@ export function ReportsScreen() {
       }));
   }, [consolidatedSummary, c]);
 
+  const activeParentCategory = useMemo(() => {
+    if (!selectedParentCategory) return null;
+    return consolidatedSummary.find(s => s.category_id === selectedParentCategory.category_id) || null;
+  }, [consolidatedSummary, selectedParentCategory]);
+
   const drillDownData = useMemo(() => {
-    if (!selectedParentCategory) return [];
+    if (!activeParentCategory) return [];
     
     const data: { id: number; name: string; total: number; color: string; percentage: number }[] = [];
-    const subTotal = selectedParentCategory.subcategories.reduce((sum: number, sub: any) => sum + sub.total, 0);
-    const directAmount = selectedParentCategory.total - subTotal;
+    const subTotal = activeParentCategory.subcategories.reduce((sum: number, sub: any) => sum + sub.total, 0);
+    const directAmount = activeParentCategory.total - subTotal;
     
     if (directAmount > 0) {
       data.push({
-        id: selectedParentCategory.category_id,
-        name: `${selectedParentCategory.category_name} (Directo)`,
+        id: activeParentCategory.category_id,
+        name: `${activeParentCategory.category_name} (Directo)`,
         total: directAmount,
-        color: selectedParentCategory.color,
-        percentage: (directAmount / selectedParentCategory.total) * 100
+        color: activeParentCategory.color,
+        percentage: (directAmount / activeParentCategory.total) * 100
       });
     }
     
-    for (const sub of selectedParentCategory.subcategories) {
+    for (const sub of activeParentCategory.subcategories) {
       if (sub.total > 0) {
         data.push({
           id: sub.category_id,
           name: sub.name || sub.category_name,
           total: sub.total,
-          color: sub.color || selectedParentCategory.color,
-          percentage: (sub.total / selectedParentCategory.total) * 100
+          color: sub.color || activeParentCategory.color,
+          percentage: (sub.total / activeParentCategory.total) * 100
         });
       }
     }
     
     return data.sort((a, b) => b.total - a.total);
-  }, [selectedParentCategory]);
+  }, [activeParentCategory]);
 
   const drillDownPieData = useMemo(() => {
     return drillDownData.map(d => ({
@@ -334,7 +339,7 @@ export function ReportsScreen() {
   );
 
   const renderCategorias = () => {
-    if (selectedParentCategory) {
+    if (activeParentCategory) {
       return (
         <>
           <View style={ss.filterRow}>
@@ -342,7 +347,7 @@ export function ReportsScreen() {
               <TouchableOpacity onPress={() => setSelectedParentCategory(null)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
                 <Ionicons name="arrow-back" size={20} color={c.text} />
               </TouchableOpacity>
-              <Text style={[ss.monthText, { color: c.text }]}>Subcategorías: {selectedParentCategory.category_name}</Text>
+              <Text style={[ss.monthText, { color: c.text }]}>Subcategorías: {activeParentCategory.category_name}</Text>
             </View>
           </View>
 
