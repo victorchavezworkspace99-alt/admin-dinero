@@ -202,7 +202,7 @@ export function ReportsScreen() {
       if (sub.total > 0) {
         data.push({
           id: sub.category_id,
-          name: sub.name || sub.category_name,
+          name: sub.category_name,
           total: sub.total,
           color: sub.color || activeParentCategory.color,
           percentage: (sub.total / activeParentCategory.total) * 100

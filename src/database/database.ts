@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { convertCurrency, getCachedSettings } from '../store/SettingsStore';
 
 import { DefaultCategories } from '../theme/colors';
 import { Transaction, Category, Budget, MonthlySummary, CategorySummary, Account, TransactionType, RecurringTransaction } from '../types';
@@ -469,20 +470,33 @@ export async function deleteTransaction(id: number): Promise<void> {
 
 export async function getMonthlySummary(month: number, year: number): Promise<MonthlySummary> {
   const database = await openDatabase();
-  const result = await database.getFirstAsync<{ income: number; expense: number }>(
-    `SELECT
-      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-    FROM transactions
-    WHERE CAST(strftime('%m', date) AS INTEGER) = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?`,
+  const rows = await database.getAllAsync<{ amount: number; type: string; currency_code: string }>(
+    `SELECT t.amount, t.type, COALESCE(a.currency_code, 'PEN') as currency_code
+     FROM transactions t
+     LEFT JOIN accounts a ON t.account_id = a.id
+     WHERE CAST(strftime('%m', t.date) AS INTEGER) = ? AND CAST(strftime('%Y', t.date) AS INTEGER) = ?`,
     [month, year]
   );
+
+  const defaultCurrency = getCachedSettings().currency.code;
+  let income = 0;
+  let expense = 0;
+
+  for (const row of rows) {
+    const convertedAmount = convertCurrency(row.amount, row.currency_code, defaultCurrency);
+    if (row.type === 'income') {
+      income += convertedAmount;
+    } else if (row.type === 'expense') {
+      expense += convertedAmount;
+    }
+  }
+
   return {
     month,
     year,
-    income: result?.income ?? 0,
-    expense: result?.expense ?? 0,
-    balance: (result?.income ?? 0) - (result?.expense ?? 0),
+    income,
+    expense,
+    balance: income - expense,
   };
 }
 
@@ -491,18 +505,38 @@ export async function getCategorySummary(month: number, year: number, type: 'inc
   const rows = await database.getAllAsync<any>(
     `SELECT
       c.id as category_id, c.name as category_name, c.icon, c.color, c.parent_id,
-      COALESCE(SUM(t.amount), 0) as total
+      t.amount, COALESCE(a.currency_code, 'PEN') as currency_code
     FROM categories c
     LEFT JOIN transactions t ON c.id = t.category_id
       AND CAST(strftime('%m', t.date) AS INTEGER) = ?
       AND CAST(strftime('%Y', t.date) AS INTEGER) = ?
-    WHERE c.type = ?
-    GROUP BY c.id
-    ORDER BY total DESC`,
+    LEFT JOIN accounts a ON t.account_id = a.id
+    WHERE c.type = ?`,
     [month, year, type]
   );
 
-  const summaries: CategorySummary[] = rows.map((r: any) => ({ ...r, percentage: 0 }));
+  const defaultCurrency = getCachedSettings().currency.code;
+  const map: Record<number, CategorySummary> = {};
+
+  for (const row of rows) {
+    const catId = row.category_id;
+    if (!map[catId]) {
+      map[catId] = {
+        category_id: catId,
+        category_name: row.category_name,
+        icon: row.icon,
+        color: row.color,
+        parent_id: row.parent_id,
+        total: 0,
+        percentage: 0
+      };
+    }
+    if (row.amount !== null && row.amount !== undefined) {
+      map[catId].total += convertCurrency(row.amount, row.currency_code, defaultCurrency);
+    }
+  }
+
+  const summaries = Object.values(map).sort((a, b) => b.total - a.total);
   const grandTotal = summaries.reduce((s, r) => s + r.total, 0);
   summaries.forEach((s) => {
     s.percentage = grandTotal > 0 ? (s.total / grandTotal) * 100 : 0;
@@ -512,21 +546,39 @@ export async function getCategorySummary(month: number, year: number, type: 'inc
 
 export async function getBudgets(month: number, year: number): Promise<Budget[]> {
   const database = await openDatabase();
-  return database.getAllAsync<Budget>(
+  const budgets = await database.getAllAsync<any>(
     `SELECT
       b.id, b.category_id, b.amount, b.month, b.year, b.is_recurring,
-      c.name as category_name, c.icon as category_icon, c.color as category_color,
-      COALESCE((SELECT SUM(t.amount) FROM transactions t
-        WHERE (t.category_id = b.category_id OR t.category_id IN (SELECT id FROM categories WHERE parent_id = b.category_id))
-        AND CAST(strftime('%m', t.date) AS INTEGER) = b.month
-        AND CAST(strftime('%Y', t.date) AS INTEGER) = b.year
-        AND t.type = 'expense'), 0) as spent
+      c.name as category_name, c.icon as category_icon, c.color as category_color
     FROM budgets b
     JOIN categories c ON b.category_id = c.id
     WHERE b.month = ? AND b.year = ?
     ORDER BY c.name`,
     [month, year]
   );
+
+  const defaultCurrency = getCachedSettings().currency.code;
+
+  for (const b of budgets) {
+    const rows = await database.getAllAsync<{ amount: number; currency_code: string }>(
+      `SELECT t.amount, COALESCE(a.currency_code, 'PEN') as currency_code
+       FROM transactions t
+       LEFT JOIN accounts a ON t.account_id = a.id
+       WHERE (t.category_id = ? OR t.category_id IN (SELECT id FROM categories WHERE parent_id = ?))
+         AND CAST(strftime('%m', t.date) AS INTEGER) = ?
+         AND CAST(strftime('%Y', t.date) AS INTEGER) = ?
+         AND t.type = 'expense'`,
+      [b.category_id, b.category_id, b.month, b.year]
+    );
+
+    let spent = 0;
+    for (const row of rows) {
+      spent += convertCurrency(row.amount, row.currency_code, defaultCurrency);
+    }
+    b.spent = spent;
+  }
+
+  return budgets;
 }
 
 export async function setBudget(category_id: number, amount: number, month: number, year: number, is_recurring = 0): Promise<void> {
@@ -583,13 +635,25 @@ export async function deleteBudget(id: number): Promise<void> {
 
 export async function getBalance(): Promise<number> {
   const database = await openDatabase();
-  const result = await database.getFirstAsync<{ balance: number }>(
-    `SELECT
-      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) -
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as balance
-    FROM transactions`
+  const rows = await database.getAllAsync<{ amount: number; type: string; currency_code: string }>(
+    `SELECT t.amount, t.type, COALESCE(a.currency_code, 'PEN') as currency_code
+     FROM transactions t
+     LEFT JOIN accounts a ON t.account_id = a.id`
   );
-  return result?.balance ?? 0;
+
+  const defaultCurrency = getCachedSettings().currency.code;
+  let totalBalance = 0;
+
+  for (const row of rows) {
+    const convertedAmount = convertCurrency(row.amount, row.currency_code, defaultCurrency);
+    if (row.type === 'income') {
+      totalBalance += convertedAmount;
+    } else if (row.type === 'expense') {
+      totalBalance -= convertedAmount;
+    }
+  }
+
+  return totalBalance;
 }
 
 export async function getMonthlyTrends(months: number): Promise<{ month: number; year: number; income: number; expense: number }[]> {
@@ -597,38 +661,62 @@ export async function getMonthlyTrends(months: number): Promise<{ month: number;
   const now = new Date();
   const results: { month: number; year: number; income: number; expense: number }[] = [];
 
+  const defaultCurrency = getCachedSettings().currency.code;
+
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const m = d.getMonth() + 1;
     const y = d.getFullYear();
-    const row = await database.getFirstAsync<{ income: number; expense: number }>(
-      `SELECT
-        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-      FROM transactions
-      WHERE CAST(strftime('%m', date) AS INTEGER) = ? AND CAST(strftime('%Y', date) AS INTEGER) = ?`,
+
+    const rows = await database.getAllAsync<{ amount: number; type: string; currency_code: string }>(
+      `SELECT t.amount, t.type, COALESCE(a.currency_code, 'PEN') as currency_code
+       FROM transactions t
+       LEFT JOIN accounts a ON t.account_id = a.id
+       WHERE CAST(strftime('%m', t.date) AS INTEGER) = ? AND CAST(strftime('%Y', t.date) AS INTEGER) = ?`,
       [m, y]
     );
-    results.push({ month: m, year: y, income: row?.income ?? 0, expense: row?.expense ?? 0 });
+
+    let income = 0;
+    let expense = 0;
+
+    for (const row of rows) {
+      const convertedAmount = convertCurrency(row.amount, row.currency_code, defaultCurrency);
+      if (row.type === 'income') {
+        income += convertedAmount;
+      } else if (row.type === 'expense') {
+        expense += convertedAmount;
+      }
+    }
+
+    results.push({ month: m, year: y, income, expense });
   }
   return results;
 }
 
 export async function getSummaryForDateRange(startDate: string, endDate: string): Promise<{ income: number; expense: number; balance: number }> {
   const database = await openDatabase();
-  const result = await database.getFirstAsync<{ income: number; expense: number }>(
-    `SELECT
-      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-    FROM transactions
-    WHERE date >= ? AND date <= ?`,
+  const rows = await database.getAllAsync<{ amount: number; type: string; currency_code: string }>(
+    `SELECT t.amount, t.type, COALESCE(a.currency_code, 'PEN') as currency_code
+     FROM transactions t
+     LEFT JOIN accounts a ON t.account_id = a.id
+     WHERE t.date >= ? AND t.date <= ?`,
     [startDate, endDate]
   );
-  return {
-    income: result?.income ?? 0,
-    expense: result?.expense ?? 0,
-    balance: (result?.income ?? 0) - (result?.expense ?? 0),
-  };
+
+  const defaultCurrency = getCachedSettings().currency.code;
+  let income = 0;
+  let expense = 0;
+
+  for (const row of rows) {
+    const convertedAmount = convertCurrency(row.amount, row.currency_code, defaultCurrency);
+    if (row.type === 'income') {
+      income += convertedAmount;
+    } else if (row.type === 'expense') {
+      expense += convertedAmount;
+    }
+  }
+
+  return { income, expense, balance: income - expense };
 }
 
 export async function getCategorySummaryForDateRange(
@@ -640,17 +728,37 @@ export async function getCategorySummaryForDateRange(
   const rows = await database.getAllAsync<any>(
     `SELECT
       c.id as category_id, c.name as category_name, c.icon, c.color, c.parent_id,
-      COALESCE(SUM(t.amount), 0) as total
+      t.amount, COALESCE(a.currency_code, 'PEN') as currency_code
     FROM categories c
     LEFT JOIN transactions t ON c.id = t.category_id
       AND t.date >= ? AND t.date <= ?
-    WHERE c.type = ?
-    GROUP BY c.id
-    ORDER BY total DESC`,
+    LEFT JOIN accounts a ON t.account_id = a.id
+    WHERE c.type = ?`,
     [startDate, endDate, type]
   );
 
-  const summaries: CategorySummary[] = rows.map((r: any) => ({ ...r, percentage: 0 }));
+  const defaultCurrency = getCachedSettings().currency.code;
+  const map: Record<number, CategorySummary> = {};
+
+  for (const row of rows) {
+    const catId = row.category_id;
+    if (!map[catId]) {
+      map[catId] = {
+        category_id: catId,
+        category_name: row.category_name,
+        icon: row.icon,
+        color: row.color,
+        parent_id: row.parent_id,
+        total: 0,
+        percentage: 0
+      };
+    }
+    if (row.amount !== null && row.amount !== undefined) {
+      map[catId].total += convertCurrency(row.amount, row.currency_code, defaultCurrency);
+    }
+  }
+
+  const summaries = Object.values(map).sort((a, b) => b.total - a.total);
   const grandTotal = summaries.reduce((s, r) => s + r.total, 0);
   summaries.forEach((s) => {
     s.percentage = grandTotal > 0 ? (s.total / grandTotal) * 100 : 0;
@@ -870,4 +978,10 @@ export async function checkDuplicateTransaction(
     [amount, date, description, account_id]
   );
   return (row?.count ?? 0) > 0;
+}
+
+export async function updateAllDatabaseCurrencies(currencyCode: string): Promise<void> {
+  const database = await openDatabase();
+  await database.runAsync('UPDATE accounts SET currency_code = ?', [currencyCode]);
+  await database.runAsync('UPDATE savings_goals SET currency_code = ?', [currencyCode]);
 }

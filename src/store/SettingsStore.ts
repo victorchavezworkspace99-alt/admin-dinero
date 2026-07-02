@@ -17,8 +17,9 @@ export interface Currency {
 }
 
 export const CURRENCIES: Currency[] = [
+  { code: 'PEN', symbol: 'S/', locale: 'es-PE', name: 'Sol Peruano' },
   { code: 'MXN', symbol: '$', locale: 'es-MX', name: 'Peso Mexicano' },
-  { code: 'USD', symbol: '$', locale: 'en-US', name: 'Dolar美国' },
+  { code: 'USD', symbol: '$', locale: 'en-US', name: 'Dolar' },
   { code: 'EUR', symbol: '\u20AC', locale: 'es-ES', name: 'Euro' },
   { code: 'GBP', symbol: '\u00A3', locale: 'en-GB', name: 'Libra Esterlina' },
   { code: 'JPY', symbol: '\u00A5', locale: 'ja-JP', name: 'Yen Japones' },
@@ -26,7 +27,6 @@ export const CURRENCIES: Currency[] = [
   { code: 'ARS', symbol: '$', locale: 'es-AR', name: 'Peso Argentino' },
   { code: 'COP', symbol: '$', locale: 'es-CO', name: 'Peso Colombiano' },
   { code: 'CLP', symbol: '$', locale: 'es-CL', name: 'Peso Chileno' },
-  { code: 'PEN', symbol: 'S/', locale: 'es-PE', name: 'Sol Peruano' },
 ];
 
 export type ThemeMode = 'light' | 'dark';
