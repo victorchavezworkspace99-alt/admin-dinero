@@ -54,20 +54,29 @@ export function HomeScreen({ navigation }: any) {
 
     const run = async () => {
       await processRecurringTransactions();
-      if (dateRange) {
-        const s = formatDateStr(dateRange.start);
-        const e = formatDateStr(dateRange.end);
-        const r = await getSummaryForDateRange(s, e);
-        setSummary({ month, year, ...r });
-        const tx = await getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, s, e);
-        setRecentTx(tx.slice(0, 5));
-      } else {
-        const r = await getMonthlySummary(month, year);
-        setSummary(r);
-        const tx = await getTransactions(undefined, undefined, month, year);
-        setRecentTx(tx.slice(0, 5));
-      }
-      const accs = await getBalancesByAccount();
+      
+      const summaryPromise = dateRange
+        ? getSummaryForDateRange(formatDateStr(dateRange.start), formatDateStr(dateRange.end))
+        : getMonthlySummary(month, year);
+        
+      const txPromise = dateRange
+        ? getTransactions(undefined, undefined, undefined, undefined, undefined, undefined, formatDateStr(dateRange.start), formatDateStr(dateRange.end))
+        : getTransactions(undefined, undefined, month, year);
+        
+      const [summaryResult, txResult, accs] = await Promise.all([
+        summaryPromise,
+        txPromise,
+        getBalancesByAccount()
+      ]);
+      
+      setSummary({
+        month,
+        year,
+        income: summaryResult.income,
+        expense: summaryResult.expense,
+        balance: summaryResult.balance
+      });
+      setRecentTx(txResult.slice(0, 5));
       processAccounts(accs);
     };
 

@@ -216,6 +216,16 @@ export async function initDatabase(): Promise<void> {
 
     await database.execAsync(`PRAGMA user_version = 5`);
   }
+
+  // Retroactively associate any orphan transactions with the default account
+  await database.runAsync(`
+    UPDATE transactions 
+    SET account_id = COALESCE(
+      (SELECT id FROM accounts WHERE is_default = 1 LIMIT 1),
+      (SELECT id FROM accounts LIMIT 1)
+    )
+    WHERE account_id IS NULL AND type != 'transfer'
+  `);
 }
 
 export async function getCategories(type?: 'income' | 'expense'): Promise<Category[]> {

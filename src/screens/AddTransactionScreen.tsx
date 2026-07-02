@@ -40,13 +40,18 @@ export function AddTransactionScreen({ navigation }: any) {
     });
     getAccounts().then((accs) => {
       setAccounts(accs);
-      if (editTx && editTx.account_id) {
-        const acc = accs.find(a => a.id === editTx.account_id);
-        if (acc) setSelectedAccount(acc);
-      }
-      if (editTx && editTx.destination_account_id) {
-        const acc = accs.find(a => a.id === editTx.destination_account_id);
-        if (acc) setSelectedDestAccount(acc);
+      if (editTx) {
+        if (editTx.account_id) {
+          const acc = accs.find(a => a.id === editTx.account_id);
+          if (acc) setSelectedAccount(acc);
+        }
+        if (editTx.destination_account_id) {
+          const acc = accs.find(a => a.id === editTx.destination_account_id);
+          if (acc) setSelectedDestAccount(acc);
+        }
+      } else {
+        const defaultAcc = accs.find(a => a.is_default === 1) || accs[0];
+        if (defaultAcc) setSelectedAccount(defaultAcc);
       }
     });
   }, [editTx]));
@@ -58,6 +63,10 @@ export function AddTransactionScreen({ navigation }: any) {
     }
     if (type !== 'transfer' && !selectedCategory) {
       Alert.alert('Categoria Requerida', 'Selecciona una categoria');
+      return;
+    }
+    if (type !== 'transfer' && !selectedAccount) {
+      Alert.alert('Cuenta Requerida', 'Selecciona una cuenta');
       return;
     }
     if (type === 'transfer' && (!selectedAccount || !selectedDestAccount)) {
