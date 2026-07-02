@@ -34,10 +34,14 @@ La versión de la aplicación sigue el formato `X.Y.Z` (ej. `1.2.0`), donde:
 
 ---
 
-## 3. Registro de Actualizaciones de la App (`version.json`)
+## 3. Registro de Actualizaciones de la App (`version.json`) y GitHub Releases
 
-Para que el actualizador inteligente integrado en la aplicación reconozca la existencia del nuevo APK:
-*   Inmediatamente después de finalizar una compilación nativa exitosa en EAS, se debe actualizar el archivo [version.json](file:///e:/PROYECTOS%20VICTOR/APPS/ADMINISTRADOR%20DE%20DINERO/version.json) en la raíz del proyecto.
-*   **latestVersion:** La nueva versión `X.Y.0` creada.
-*   **apkUrl:** El enlace de descarga directo del APK generado por Expo (o el enlace de la release correspondiente en GitHub).
-*   **changelog:** Breve resumen de los cambios añadidos.
+Para que el actualizador inteligente integrado en la aplicación reconozca la existencia del nuevo APK y permita la descarga e instalación automática desde GitHub:
+1.  **Etiqueta de Release en GitHub:** Debe ser exactamente **`vX.Y.Z`** (con la "v" en minúscula). Ejemplo: `v1.3.0`.
+2.  **Nombre del Archivo APK Adjunto:** Debe renombrarse y subirse a la Release exactamente como **`BalancePro-vX.Y.Z.apk`** (ejemplo: `BalancePro-v1.3.0.apk`).
+3.  **Actualizar [version.json](file:///e:/PROYECTOS%20VICTOR/APPS/ADMINISTRADOR%20DE%20DINERO/version.json):** Inmediatamente después de iniciar la build nativa, actualiza el archivo en la raíz del proyecto con la siguiente estructura exacta:
+    *   **latestVersion:** La nueva versión del build (ej. `"1.3.0"`).
+    *   **apkUrl:** El enlace de descarga de la release en GitHub, formateado como:
+        `https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/vX.Y.Z/BalancePro-vX.Y.Z.apk`
+        (Reemplazando `X.Y.Z` por la versión correspondiente).
+    *   **changelog:** Breve resumen de los cambios añadidos.
