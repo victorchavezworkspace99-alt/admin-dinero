@@ -9,6 +9,9 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { loadSettings } from './src/store/SettingsStore';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import * as SplashScreen from 'expo-splash-screen';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AppContent() {
   const { isDark, settings } = useTheme();
@@ -42,8 +45,14 @@ export default function App() {
     setReady(false);
     loadSettings().then(() => initDatabase())
       .then(() => checkAndAutoCopyRecurringBudgets())
-      .then(() => setReady(true))
-      .catch((err) => setError(err.message || 'Error al inicializar'));
+      .then(() => {
+        setReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      })
+      .catch((err) => {
+        setError(err.message || 'Error al inicializar');
+        SplashScreen.hideAsync().catch(() => {});
+      });
   };
 
   useEffect(() => { startApp(); }, []);
@@ -95,13 +104,7 @@ export default function App() {
   }
 
   if (!ready) {
-    return (
-      <View style={styles.splashContainer}>
-        <Image source={require('./assets/iconoapp.png')} style={styles.splashIcon} resizeMode="contain" />
-        <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 24 }} />
-        <Text style={styles.splashTitle}>Balance Pro</Text>
-      </View>
-    );
+    return null;
   }
 
   return (

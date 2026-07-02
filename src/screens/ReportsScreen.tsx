@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Animated } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Animated, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart, BarChart, LineChart } from 'react-native-chart-kit';
 import { useTheme } from '../theme/ThemeContext';
+import ViewShot from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { getMonthlySummary, getCategorySummary, getCategorySummaryForDateRange, getMonthlyTrends, getBudgets, getTransactions, getSummaryForDateRange } from '../database/database';
 import { MonthlySummary, CategorySummary, Budget } from '../types';
 import { DateRangeFilter } from '../components/DateRangeFilter';
@@ -41,6 +43,33 @@ export function ReportsScreen() {
   const [dayStats, setDayStats] = useState<{ bestDayLabel: string; bestAmount: number; worstDayLabel: string; worstAmount: number; txCount: number }>({ bestDayLabel: '', bestAmount: 0, worstDayLabel: '', worstAmount: 0, txCount: 0 });
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [showFilter, setShowFilter] = useState(false);
+
+  const [selectedParentCategory, setSelectedParentCategory] = useState<any | null>(null);
+  const viewShotRef = useRef<any>(null);
+
+  // Reset drill-down view when tab or showIncome changes
+  useEffect(() => {
+    setSelectedParentCategory(null);
+  }, [tab, showIncome]);
+
+  const exportReportImage = async () => {
+    try {
+      if (!viewShotRef.current) return;
+      const uri = await viewShotRef.current.capture();
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Compartir reporte de Balance Pro',
+        });
+      } else {
+        Alert.alert('No disponible', 'La función de compartir no está disponible en este dispositivo.');
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'No se pudo generar la imagen del reporte.');
+    }
+  };
 
   function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
   function fmtDate(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -94,16 +123,100 @@ export function ReportsScreen() {
   const currentLabel = showIncome ? 'Ingresos' : 'Gastos';
   const toggleLabel = showIncome ? 'Ver Gastos' : 'Ver Ingresos';
 
-  const chartPieData = currentSummary
-    .filter(s => s.total > 0)
-    .slice(0, 8)
-    .map(s => ({
-      name: s.category_name.length > 12 ? s.category_name.substring(0, 12) + '..' : s.category_name,
-      total: s.total,
-      color: s.color,
+  const consolidatedSummary = useMemo(() => {
+    const parentMap: Record<number, CategorySummary & { subcategories: CategorySummary[] }> = {};
+    const subcategoryList: CategorySummary[] = [];
+
+    // Find all parent categories (where parent_id is null)
+    for (const item of currentSummary) {
+      if (!item.parent_id) {
+        parentMap[item.category_id] = {
+          ...item,
+          subcategories: []
+        };
+      } else {
+        subcategoryList.push(item);
+      }
+    }
+
+    // Allocate subcategories to their parents
+    for (const sub of subcategoryList) {
+      const parentId = sub.parent_id!;
+      if (parentMap[parentId]) {
+        parentMap[parentId].total += sub.total;
+        parentMap[parentId].subcategories.push(sub);
+      } else {
+        // Orphan subcategory, treat as parent
+        parentMap[sub.category_id] = {
+          ...sub,
+          subcategories: []
+        };
+      }
+    }
+
+    const result = Object.values(parentMap);
+    const grandTotal = result.reduce((s, r) => s + r.total, 0);
+    for (const item of result) {
+      item.percentage = grandTotal > 0 ? (item.total / grandTotal) * 100 : 0;
+    }
+
+    return result.sort((a, b) => b.total - a.total);
+  }, [currentSummary]);
+
+  const chartPieData = useMemo(() => {
+    return consolidatedSummary
+      .filter(s => s.total > 0)
+      .slice(0, 8)
+      .map(s => ({
+        name: s.category_name.length > 12 ? s.category_name.substring(0, 12) + '..' : s.category_name,
+        total: s.total,
+        color: s.color,
+        legendFontColor: c.textSecondary,
+        legendFontSize: 12,
+      }));
+  }, [consolidatedSummary, c]);
+
+  const drillDownData = useMemo(() => {
+    if (!selectedParentCategory) return [];
+    
+    const data: { id: number; name: string; total: number; color: string; percentage: number }[] = [];
+    const subTotal = selectedParentCategory.subcategories.reduce((sum: number, sub: any) => sum + sub.total, 0);
+    const directAmount = selectedParentCategory.total - subTotal;
+    
+    if (directAmount > 0) {
+      data.push({
+        id: selectedParentCategory.category_id,
+        name: `${selectedParentCategory.category_name} (Directo)`,
+        total: directAmount,
+        color: selectedParentCategory.color,
+        percentage: (directAmount / selectedParentCategory.total) * 100
+      });
+    }
+    
+    for (const sub of selectedParentCategory.subcategories) {
+      if (sub.total > 0) {
+        data.push({
+          id: sub.category_id,
+          name: sub.name || sub.category_name,
+          total: sub.total,
+          color: sub.color || selectedParentCategory.color,
+          percentage: (sub.total / selectedParentCategory.total) * 100
+        });
+      }
+    }
+    
+    return data.sort((a, b) => b.total - a.total);
+  }, [selectedParentCategory]);
+
+  const drillDownPieData = useMemo(() => {
+    return drillDownData.map(d => ({
+      name: d.name.length > 12 ? d.name.substring(0, 12) + '..' : d.name,
+      total: d.total,
+      color: d.color,
       legendFontColor: c.textSecondary,
       legendFontSize: 12,
     }));
+  }, [drillDownData, c]);
 
   const chartBarData = {
     labels: trends.map(t => MONTHS[t.month - 1].substring(0, 3)),
@@ -220,62 +333,123 @@ export function ReportsScreen() {
     </>
   );
 
-  const renderCategorias = () => (
-    <>
-      <View style={ss.filterRow}>
-        <View style={ss.monthNav}>
-          <TouchableOpacity onPress={() => changeMonth(-1)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={20} color={c.text} />
-          </TouchableOpacity>
-          <Text style={[ss.monthText, { color: c.text }]}>{MONTHS[month - 1]} {year}</Text>
-          <TouchableOpacity onPress={() => changeMonth(1)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
-            <Ionicons name="chevron-forward" size={20} color={c.text} />
+  const renderCategorias = () => {
+    if (selectedParentCategory) {
+      return (
+        <>
+          <View style={ss.filterRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity onPress={() => setSelectedParentCategory(null)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
+                <Ionicons name="arrow-back" size={20} color={c.text} />
+              </TouchableOpacity>
+              <Text style={[ss.monthText, { color: c.text }]}>Subcategorías: {selectedParentCategory.category_name}</Text>
+            </View>
+          </View>
+
+          {drillDownPieData.length > 0 ? (
+            <SpringScale delay={50}>
+              <View style={[ss.chartCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+                <PieChart
+                  data={drillDownPieData}
+                  width={CHART_WIDTH}
+                  height={200}
+                  chartConfig={chartConfig}
+                  accessor="total"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute={false}
+                />
+              </View>
+            </SpringScale>
+          ) : (
+            <View style={[ss.emptyCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+              <View style={[ss.emptyRing, { backgroundColor: c.background, borderColor: c.border }]}>
+                <Ionicons name="bar-chart-outline" size={36} color={c.textLight} />
+              </View>
+              <Text style={[ss.emptyText, { color: c.textLight }]}>Sin movimientos este mes</Text>
+            </View>
+          )}
+
+          <View style={ss.legendWrap}>
+            {drillDownData.map((s, i) => (
+              <SpringScale key={s.id} delay={i * 30}>
+                <View style={[ss.legendItem, { backgroundColor: c.surface }]}>
+                  <View style={[ss.legendBar, { backgroundColor: s.color, width: `${Math.max(s.percentage, 2)}%` }]} />
+                  <Text style={[ss.legendName, { color: c.text }]}>{s.name}</Text>
+                  <Text style={[ss.legendAmount, { color: c.text }]}>{formatCurrency(s.total)}</Text>
+                  <Text style={[ss.legendPercent, { color: c.textLight }]}>{s.percentage.toFixed(0)}%</Text>
+                </View>
+              </SpringScale>
+            ))}
+          </View>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <View style={ss.filterRow}>
+          <View style={ss.monthNav}>
+            <TouchableOpacity onPress={() => changeMonth(-1)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={20} color={c.text} />
+            </TouchableOpacity>
+            <Text style={[ss.monthText, { color: c.text }]}>{MONTHS[month - 1]} {year}</Text>
+            <TouchableOpacity onPress={() => changeMonth(1)} style={[ss.monthBtn, { backgroundColor: c.surface, shadowColor: c.cardShadow }]} activeOpacity={0.7}>
+              <Ionicons name="chevron-forward" size={20} color={c.text} />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={[ss.toggleBtn, { backgroundColor: c.primaryLight }]} onPress={() => setShowIncome(!showIncome)} activeOpacity={0.7}>
+            <Ionicons name="swap-horizontal" size={16} color={c.primary} />
+            <Text style={[ss.toggleText, { color: c.primary }]}>{toggleLabel}</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[ss.toggleBtn, { backgroundColor: c.primaryLight }]} onPress={() => setShowIncome(!showIncome)} activeOpacity={0.7}>
-          <Ionicons name="swap-horizontal" size={16} color={c.primary} />
-          <Text style={[ss.toggleText, { color: c.primary }]}>{toggleLabel}</Text>
-        </TouchableOpacity>
-      </View>
 
-      {chartPieData.length > 0 ? (
-        <SpringScale delay={50}>
-          <View style={[ss.chartCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
-            <PieChart
-              data={chartPieData}
-              width={CHART_WIDTH}
-              height={200}
-              chartConfig={chartConfig}
-              accessor="total"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute={false}
-            />
-          </View>
-        </SpringScale>
-      ) : (
-        <View style={[ss.emptyCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
-          <View style={[ss.emptyRing, { backgroundColor: c.background, borderColor: c.border }]}>
-            <Ionicons name="bar-chart-outline" size={36} color={c.textLight} />
-          </View>
-          <Text style={[ss.emptyText, { color: c.textLight }]}>Sin {currentLabel.toLowerCase()} este mes</Text>
-        </View>
-      )}
-
-      <View style={ss.legendWrap}>
-        {currentSummary.filter(s => s.total > 0).map((s, i) => (
-          <SpringScale key={s.category_id} delay={i * 30}>
-            <View style={[ss.legendItem, { backgroundColor: c.surface }]}>
-              <View style={[ss.legendBar, { backgroundColor: s.color, width: `${Math.max(s.percentage, 2)}%` }]} />
-              <Text style={[ss.legendName, { color: c.text }]}>{s.category_name}</Text>
-              <Text style={[ss.legendAmount, { color: c.text }]}>{formatCurrency(s.total)}</Text>
-              <Text style={[ss.legendPercent, { color: c.textLight }]}>{s.percentage.toFixed(0)}%</Text>
+        {chartPieData.length > 0 ? (
+          <SpringScale delay={50}>
+            <View style={[ss.chartCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+              <PieChart
+                data={chartPieData}
+                width={CHART_WIDTH}
+                height={200}
+                chartConfig={chartConfig}
+                accessor="total"
+                backgroundColor="transparent"
+                paddingLeft="15"
+                absolute={false}
+              />
             </View>
           </SpringScale>
-        ))}
-      </View>
-    </>
-  );
+        ) : (
+          <View style={[ss.emptyCard, { backgroundColor: c.surface, shadowColor: c.cardShadow }]}>
+            <View style={[ss.emptyRing, { backgroundColor: c.background, borderColor: c.border }]}>
+              <Ionicons name="bar-chart-outline" size={36} color={c.textLight} />
+            </View>
+            <Text style={[ss.emptyText, { color: c.textLight }]}>Sin {currentLabel.toLowerCase()} este mes</Text>
+          </View>
+        )}
+
+        <View style={ss.legendWrap}>
+          {consolidatedSummary.filter(s => s.total > 0).map((s, i) => (
+            <SpringScale key={s.category_id} delay={i * 30}>
+              <TouchableOpacity
+                style={[ss.legendItem, { backgroundColor: c.surface }]}
+                onPress={() => s.subcategories.length > 0 && setSelectedParentCategory(s)}
+                activeOpacity={s.subcategories.length > 0 ? 0.7 : 1}
+              >
+                <View style={[ss.legendBar, { backgroundColor: s.color, width: `${Math.max(s.percentage, 2)}%` }]} />
+                <Text style={[ss.legendName, { color: c.text }]}>
+                  {s.category_name} {s.subcategories.length > 0 && <Text style={{ fontSize: 11, color: c.primary, fontWeight: '700' }}>(+{s.subcategories.length} sub)</Text>}
+                </Text>
+                <Text style={[ss.legendAmount, { color: c.text }]}>{formatCurrency(s.total)}</Text>
+                <Text style={[ss.legendPercent, { color: c.textLight }]}>{s.percentage.toFixed(0)}%</Text>
+                {s.subcategories.length > 0 && <Ionicons name="chevron-forward" size={14} color={c.textLight} style={{ marginLeft: 4 }} />}
+              </TouchableOpacity>
+            </SpringScale>
+          ))}
+        </View>
+      </>
+    );
+  };
 
   const renderTendencias = () => (
     <>
@@ -552,15 +726,17 @@ export function ReportsScreen() {
       )}
 
       <View style={ss.legendWrap}>
-        {currentSummary.filter(s => s.total > 0).map((s, i) => (
-          <TouchableOpacity key={s.category_id} activeOpacity={0.7}>
+        {consolidatedSummary.filter(s => s.total > 0).map((s, i) => (
+          <TouchableOpacity key={s.category_id} activeOpacity={s.subcategories.length > 0 ? 0.7 : 1} onPress={() => s.subcategories.length > 0 && setSelectedParentCategory(s)}>
             <View style={[ss.customLegendItem, { backgroundColor: c.surface }]}>
-              <View style={[ss.legendDotBig, { backgroundColor: s.color }]} />
-              <View style={ss.customLegendInfo}>
-                <Text style={[ss.legendName, { color: c.text }]}>{s.category_name}</Text>
+              <View style={[ss.customLegendInfo, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                <Text style={[ss.legendName, { color: c.text }]}>
+                  {s.category_name} {s.subcategories.length > 0 && <Text style={{ fontSize: 11, color: c.primary, fontWeight: '700' }}>(+{s.subcategories.length} sub)</Text>}
+                </Text>
                 <View style={ss.customLegendMeta}>
                   <Text style={[ss.legendAmount, { color: c.text }]}>{formatCurrency(s.total)}</Text>
                   <Text style={[ss.legendPercent, { color: c.textLight }]}>{s.percentage.toFixed(1)}%</Text>
+                  {s.subcategories.length > 0 && <Ionicons name="chevron-forward" size={12} color={c.textLight} />}
                 </View>
               </View>
               <View style={[ss.legendProgress, { backgroundColor: c.background }]}>
@@ -578,9 +754,14 @@ export function ReportsScreen() {
       <View style={[ss.header, { backgroundColor: c.primary }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={ss.title}>Reportes</Text>
-          <TouchableOpacity onPress={() => setShowFilter(true)} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={0.7}>
-            <Ionicons name={dateRange ? "funnel" : "calendar-outline"} size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity onPress={exportReportImage} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={0.7}>
+              <Ionicons name="share-social-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowFilter(true)} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={0.7}>
+              <Ionicons name={dateRange ? "funnel" : "calendar-outline"} size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
         {dateRange && (
           <Text style={{ fontSize: 12, color: '#ffffffcc', marginTop: 4, fontWeight: '500' }}>
@@ -604,11 +785,13 @@ export function ReportsScreen() {
       </ScrollView>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-        {tab === 'resumen' && renderResumen()}
-        {tab === 'categorias' && renderCategorias()}
-        {tab === 'tendencias' && renderTendencias()}
-        {tab === 'presupuestos' && renderPresupuestos()}
-        {tab === 'personalizado' && renderPersonalizado()}
+        <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.95 }} style={{ backgroundColor: c.background, paddingBottom: 60 }}>
+          {tab === 'resumen' && renderResumen()}
+          {tab === 'categorias' && renderCategorias()}
+          {tab === 'tendencias' && renderTendencias()}
+          {tab === 'presupuestos' && renderPresupuestos()}
+          {tab === 'personalizado' && renderPersonalizado()}
+        </ViewShot>
         <View style={{ height: 100 }} />
       </ScrollView>
 

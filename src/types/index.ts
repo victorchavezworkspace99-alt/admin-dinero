@@ -70,6 +70,7 @@ export interface CategorySummary {
   color: string;
   total: number;
   percentage: number;
+  parent_id?: number | null;
 }
 
 export interface SavingsGoal {

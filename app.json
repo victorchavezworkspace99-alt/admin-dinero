@@ -2,7 +2,7 @@
   "expo": {
     "name": "Balance Pro",
     "slug": "administrador-dinero",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "cli": {
       "appVersionSource": "local"
     },
@@ -34,7 +34,8 @@
     "plugins": [
       "expo-sqlite",
       "expo-sharing",
-      "expo-updates"
+      "expo-updates",
+      "expo-splash-screen"
     ],
     "updates": {
       "url": "https://u.expo.dev/478a854b-0a3e-4ea4-bba7-f64a1b4a6f2e"
