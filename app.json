@@ -2,7 +2,7 @@
   "expo": {
     "name": "Balance Pro",
     "slug": "administrador-dinero",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "cli": {
       "appVersionSource": "local"
     },
@@ -26,11 +26,14 @@
     "android": {
       "package": "com.tudominio.balancepro",
       "softwareKeyboardLayoutMode": "pan",
-      "versionCode": 13,
+      "versionCode": 14,
       "adaptiveIcon": {
         "backgroundColor": "#1A6DF0",
         "foregroundImage": "./assets/iconoapp.png"
-      }
+      },
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ]
     },
     "plugins": [
       "expo-sqlite",
