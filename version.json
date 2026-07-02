@@ -1,5 +1,5 @@
 {
   "latestVersion": "1.3.0",
-  "apkUrl": "https://expo.dev/artifacts/eas/fQUp0yH58SiDsh28HOmFNVVJL7MJ2iBjU7yAf3En0Ik.apk",
+  "apkUrl": "https://github.com/victorchavezworkspace99-alt/admin-dinero/releases/download/v1.3.0/BalancePro-v1.3.0.apk",
   "changelog": "• Selector contextual limpio de subcategorías con contador en categorías principales\n• Reportes con consolidación de subcategorías y desglose interactivo (drill-down)\n• Exportación estética del reporte actual en formato de imagen compartible\n• Integración de expo-splash-screen nativo para carga inicial fluida y sin parpadeos\n• Corrección de actualización lenta de balance en el inicio mediante Promise.all\n• Solución a saldo en cero al obligar y auto-preseleccionar cuenta en transacciones, y migración retroactiva automática"
 }
